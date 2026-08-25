@@ -2,41 +2,58 @@ document.addEventListener('DOMContentLoaded', () => {
   const metricPlaced = document.getElementById('metric-placed');
   const metricSpots = document.getElementById('metric-spots');
   const inProgressContainer = document.getElementById('in-progress-container');
+  const whosNextContainer = document.getElementById('whos-next-container');
+  const activeCountPill = document.getElementById('active-session-count');
+  const nextCountPill = document.getElementById('next-session-count');
   const refreshBtn = document.getElementById('refresh-btn');
 
-  const MAX_CAPACITY = 25; // Matching Google Apps Script daily capacity cap
+  const MAX_CAPACITY = 25;
 
   async function fetchLivePlacements() {
     try {
-      inProgressContainer.innerHTML = '<div class="loading-cell">Updating data...</div>';
+      inProgressContainer.innerHTML = `
+        <div class="status-state-box">
+          <div class="spinner"></div>
+          <span>Loading session status...</span>
+        </div>`;
+      whosNextContainer.innerHTML = `
+        <div class="status-state-box">
+          <div class="spinner"></div>
+          <span>Loading queue status...</span>
+        </div>`;
 
       const response = await fetch('/api/placements');
       if (!response.ok) throw new Error('Failed to fetch data');
-      
+
       const data = await response.json();
       renderData(data);
     } catch (err) {
       console.error(err);
-      inProgressContainer.innerHTML = '<div class="loading-cell">Unable to load placement data at this time.</div>';
+      inProgressContainer.innerHTML = '<div class="status-state-box">Unable to load placement data.</div>';
+      whosNextContainer.innerHTML = '<div class="status-state-box">Unable to load queue data.</div>';
     }
   }
 
   function renderData(rows) {
     if (!rows || rows.length === 0) {
-      inProgressContainer.innerHTML = '<div class="empty-state">No active sessions at the moment.</div>';
+      inProgressContainer.innerHTML = '<div class="status-state-box"><span>No sessions currently in progress</span></div>';
+      whosNextContainer.innerHTML = '<div class="status-state-box"><span>No upcoming placements in queue</span></div>';
+      if (activeCountPill) activeCountPill.textContent = '0 Active';
+      if (nextCountPill) nextCountPill.textContent = '0 Queued';
       metricPlaced.textContent = 0;
       metricSpots.textContent = MAX_CAPACITY;
       return;
     }
 
     let placedCount = 0;
-    const inProgressPlacements = [];
+    const inProgressList = [];
+    const whosNextList = [];
 
     rows.forEach(row => {
       const placementVal = String(row[0] || '').trim();
-      const statusVal = String(row[1] || 'Pending').trim().toLowerCase();
+      const rawStatus = String(row[1] || 'Pending').trim();
+      const statusVal = rawStatus.toLowerCase();
 
-      // Check if entry has a valid placement (Numeric 1-25 or Priority P1-P5)
       const isNumeric = !isNaN(parseInt(placementVal, 10));
       const isPriority = placementVal.toUpperCase().startsWith('P');
 
@@ -44,35 +61,50 @@ document.addEventListener('DOMContentLoaded', () => {
         placedCount++;
       }
 
-      // Collect only "In Progress" placements for display
+      // Filter In Progress vs. Queued (Check-In or Pending)
       if (statusVal === 'in progress' || statusVal === 'inprogress') {
-        inProgressPlacements.push(placementVal);
+        inProgressList.push({ id: placementVal, status: rawStatus });
+      } else if (statusVal === 'check-in' || statusVal === 'checkin' || statusVal === 'pending') {
+        whosNextList.push({ id: placementVal, status: rawStatus, isCheckIn: statusVal.includes('check') });
       }
     });
 
-    // Render "In Progress" items or an empty state message
-    if (inProgressPlacements.length > 0) {
-      inProgressContainer.innerHTML = inProgressPlacements
-        .map(id => `
+    // Update Pills
+    if (activeCountPill) activeCountPill.textContent = `${inProgressList.length} Active`;
+    if (nextCountPill) nextCountPill.textContent = `${whosNextList.length} Queued`;
+
+    // Render "In Progress" Cards
+    if (inProgressList.length > 0) {
+      inProgressContainer.innerHTML = inProgressList
+        .map(item => `
           <div class="in-progress-card">
-            <span class="badge badge-in-progress">In Progress</span>
-            <span class="placement-id">Placement ${id}</span>
+            <span class="badge badge-in-progress">${item.status}</span>
+            <span class="placement-id">Placement ${item.id}</span>
           </div>
         `).join('');
     } else {
-      inProgressContainer.innerHTML = '<div class="empty-state">No sessions currently in progress.</div>';
+      inProgressContainer.innerHTML = '<div class="status-state-box"><span>No sessions currently in progress</span></div>';
     }
 
-    // Correct Metrics Calculation: 25 max capacity minus placed count
-    const spotsLeft = Math.max(0, MAX_CAPACITY - placedCount);
+    // Render "Who's Next" Cards
+    if (whosNextList.length > 0) {
+      whosNextContainer.innerHTML = whosNextList
+        .map(item => `
+          <div class="next-card">
+            <span class="badge ${item.isCheckIn ? 'badge-checkin' : 'badge-pending'}">${item.status}</span>
+            <span class="placement-id">Placement ${item.id}</span>
+          </div>
+        `).join('');
+    } else {
+      whosNextContainer.innerHTML = '<div class="status-state-box"><span>No upcoming placements in queue</span></div>';
+    }
 
-    // Update Dashboard UI
+    // Dashboard calculations
+    const spotsLeft = Math.max(0, MAX_CAPACITY - placedCount);
     metricPlaced.textContent = placedCount;
     metricSpots.textContent = spotsLeft;
   }
 
   refreshBtn.addEventListener('click', fetchLivePlacements);
-
-  // Initial Fetch on page load
   fetchLivePlacements();
 });
