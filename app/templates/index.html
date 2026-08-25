@@ -16,7 +16,6 @@
   </div>
 </section>
 
-
 <!-- Program Details Section -->
 <section class="info-section">
   <div class="container info-grid">
@@ -44,6 +43,24 @@
     </div>
 
     <div class="info-sidebar">
+      <!-- Local Video -->
+      <div class="media-card">
+        <video controls class="sidebar-video">
+          <source src="{{ url_for('static', filename='gp_tattoo_removal_program.mp4') }}" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+      </div>
+
+      <!-- Local Images Stack -->
+      <div class="media-card">
+        <img src="{{ url_for('static', filename='tattoo_removal.png') }}" alt="Tattoo Removal Process" class="sidebar-img">
+      </div>
+
+      <div class="media-card">
+        <img src="{{ url_for('static', filename='technian.jpg') }}" alt="Laser Removal Technician" class="sidebar-img">
+      </div>
+
+      <!-- Call to Action Box -->
       <div class="cta-box">
         <p>Ready to start your process?</p>
         <a href="tel:6616339133" class="btn-primary btn-block">Call (661) 633-9133 for Info</a>
