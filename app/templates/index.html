@@ -13,6 +13,9 @@
         <a href="#status" class="btn-secondary">Check Live Availability</a>
       </div>
     </div>
+    <div class="hero-media">
+      <img src="{{ url_for('static', filename='tattoo_removal.png') }}" alt="Garden Pathways Tattoo Removal" class="hero-img">
+    </div>
   </div>
 </section>
 
@@ -42,8 +45,8 @@
       </blockquote>
     </div>
 
-    <div class="info-sidebar">
-      <!-- Local Video -->
+    <!-- Clean, Constrained Sidebar Media Stack -->
+    <aside class="info-sidebar">
       <div class="media-card">
         <video controls class="sidebar-video">
           <source src="{{ url_for('static', filename='gp_tattoo_removal_program.mp4') }}" type="video/mp4">
@@ -51,21 +54,15 @@
         </video>
       </div>
 
-      <!-- Local Images Stack -->
-      <div class="media-card">
-        <img src="{{ url_for('static', filename='tattoo_removal.png') }}" alt="Tattoo Removal Process" class="sidebar-img">
-      </div>
-
       <div class="media-card">
         <img src="{{ url_for('static', filename='technian.jpg') }}" alt="Laser Removal Technician" class="sidebar-img">
       </div>
 
-      <!-- Call to Action Box -->
       <div class="cta-box">
         <p>Ready to start your process?</p>
         <a href="tel:6616339133" class="btn-primary btn-block">Call (661) 633-9133 for Info</a>
       </div>
-    </div>
+    </aside>
   </div>
 </section>
 
