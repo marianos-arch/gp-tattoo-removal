@@ -1,14 +1,14 @@
 document.addEventListener('DOMContentLoaded', () => {
   const metricPlaced = document.getElementById('metric-placed');
   const metricSpots = document.getElementById('metric-spots');
-  const tableBody = document.getElementById('table-body');
+  const inProgressContainer = document.getElementById('in-progress-container');
   const refreshBtn = document.getElementById('refresh-btn');
 
   const MAX_CAPACITY = 25; // Matching Google Apps Script daily capacity cap
 
   async function fetchLivePlacements() {
     try {
-      tableBody.innerHTML = '<tr><td colspan="2" class="loading-cell">Updating data...</td></tr>';
+      inProgressContainer.innerHTML = '<div class="loading-cell">Updating data...</div>';
 
       const response = await fetch('/api/placements');
       if (!response.ok) throw new Error('Failed to fetch data');
@@ -17,24 +17,24 @@ document.addEventListener('DOMContentLoaded', () => {
       renderData(data);
     } catch (err) {
       console.error(err);
-      tableBody.innerHTML = '<tr><td colspan="2" class="loading-cell">Unable to load placement data at this time.</td></tr>';
+      inProgressContainer.innerHTML = '<div class="loading-cell">Unable to load placement data at this time.</div>';
     }
   }
 
   function renderData(rows) {
     if (!rows || rows.length === 0) {
-      tableBody.innerHTML = '<tr><td colspan="2" class="loading-cell">No active records found.</td></tr>';
+      inProgressContainer.innerHTML = '<div class="empty-state">No active sessions at the moment.</div>';
       metricPlaced.textContent = 0;
       metricSpots.textContent = MAX_CAPACITY;
       return;
     }
 
     let placedCount = 0;
-    tableBody.innerHTML = '';
+    const inProgressPlacements = [];
 
     rows.forEach(row => {
       const placementVal = String(row[0] || '').trim();
-      const statusVal = String(row[1] || 'Pending').trim();
+      const statusVal = String(row[1] || 'Pending').trim().toLowerCase();
 
       // Check if entry has a valid placement (Numeric 1-25 or Priority P1-P5)
       const isNumeric = !isNaN(parseInt(placementVal, 10));
@@ -44,26 +44,24 @@ document.addEventListener('DOMContentLoaded', () => {
         placedCount++;
       }
 
-      const tr = document.createElement('tr');
-      
-      // Determine badge class while safely handling variations (spaces vs hyphens)
-      const cleanStatus = statusVal.toLowerCase();
-      let badgeClass = 'badge-pending';
-
-      if (cleanStatus === 'approved' || cleanStatus === 'successful') {
-        badgeClass = 'badge-success';
-      } else if (cleanStatus === 'in progress' || cleanStatus === 'inprogress') {
-        badgeClass = 'badge-in-progress';
-      } else if (cleanStatus === 'check-in' || cleanStatus === 'checkin') {
-        badgeClass = 'badge-checkin';
+      // Collect only "In Progress" placements for display
+      if (statusVal === 'in progress' || statusVal === 'inprogress') {
+        inProgressPlacements.push(placementVal);
       }
-
-      tr.innerHTML = `
-        <td><strong>Placement ${placementVal}</strong></td>
-        <td><span class="badge ${badgeClass}">${statusVal}</span></td>
-      `;
-      tableBody.appendChild(tr);
     });
+
+    // Render "In Progress" items or an empty state message
+    if (inProgressPlacements.length > 0) {
+      inProgressContainer.innerHTML = inProgressPlacements
+        .map(id => `
+          <div class="in-progress-card">
+            <span class="badge badge-in-progress">In Progress</span>
+            <span class="placement-id">Placement ${id}</span>
+          </div>
+        `).join('');
+    } else {
+      inProgressContainer.innerHTML = '<div class="empty-state">No sessions currently in progress.</div>';
+    }
 
     // Correct Metrics Calculation: 25 max capacity minus placed count
     const spotsLeft = Math.max(0, MAX_CAPACITY - placedCount);
