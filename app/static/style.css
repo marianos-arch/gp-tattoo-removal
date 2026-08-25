@@ -109,53 +109,98 @@ body {
   width: 100%;
 }
 
-/* Hero Section */
+/* Refined Hero Styles */
 .hero {
-  background: linear-gradient(135deg, var(--primary) 0%, #1e3a1a 100%);
+  padding: 40px 0;
+  background-color: var(--bg-light);
+}
+
+.hero-card {
+  background: linear-gradient(135deg, var(--primary) 0%, #1a3818 100%);
   color: var(--white);
-  padding: 64px 0;
-  text-align: center;
+  border-radius: 16px;
+  padding: 48px;
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 40px;
+  align-items: center;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
 }
-.hero-content {
-  max-width: 700px;
-  margin: 0 auto;
+
+.badge-hero {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.15);
+  color: #d1fae5;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 20px;
+  margin-bottom: 12px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
 }
+
 .hero-text h1 {
-  font-size: 2.5rem;
+  font-size: 2.25rem;
+  font-weight: 700;
+  line-height: 1.2;
   margin-bottom: 12px;
 }
+
 .hero-subtitle {
-  font-size: 1.25rem;
-  opacity: 0.95;
+  font-size: 1.15rem;
+  opacity: 0.9;
   margin-bottom: 8px;
 }
+
 .hero-location {
-  font-size: 1.1rem;
-  opacity: 0.85;
-  margin-bottom: 24px;
+  font-size: 1rem;
+  opacity: 0.8;
+  margin-bottom: 28px;
 }
+
 .hero-actions {
   display: flex;
   gap: 16px;
-  justify-content: center;
   flex-wrap: wrap;
 }
 
-/* Dashboard Section */
-.status-section {
-  padding: 56px 0;
+/* PNG Media Wrapper */
+.hero-media-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 20px;
+  backdrop-filter: blur(4px);
 }
-.section-header {
-  margin-bottom: 32px;
+
+.hero-png-img {
+  max-width: 100%;
+  height: auto;
+  max-height: 260px;
+  object-fit: contain; /* Preserves natural image aspect ratio without cropping */
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.25));
 }
-.text-center {
-  text-align: center;
-}
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 20px;
-  margin-bottom: 28px;
+
+/* Mobile Responsiveness */
+@media (max-width: 868px) {
+  .hero-card {
+    grid-template-columns: 1fr;
+    padding: 32px 24px;
+    text-align: center;
+  }
+
+  .hero-actions {
+    justify-content: center;
+  }
+
+  .hero-png-img {
+    max-height: 200px;
+  }
 }
 
 /* Cards */
