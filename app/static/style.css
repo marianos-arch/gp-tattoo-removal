@@ -61,6 +61,19 @@ body {
   color: var(--text-dark);
   font-weight: 500;
 }
+/* Navbar Logo Styling */
+.logo-link {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.nav-logo {
+  height: 40px; /* Adjust height as needed */
+  width: auto;
+  display: block;
+  object-fit: contain;
+}
 
 /* Buttons */
 .btn-primary {
@@ -299,3 +312,5 @@ footer {
     grid-template-columns: 1fr;
   }
 }
+
+
