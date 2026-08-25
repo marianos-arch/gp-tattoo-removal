@@ -637,3 +637,35 @@ footer {
     gap: 32px;
   }
 }
+
+/* Queued Count Pill Accent */
+.count-pill-amber {
+  background-color: var(--accent-light);
+  color: var(--accent-hover);
+}
+
+/* Who's Next Individual Card */
+.next-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.next-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(217, 119, 6, 0.12);
+}
+
+.next-card .placement-id {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-dark);
+}
