@@ -243,8 +243,9 @@ body {
   font-size: 0.85rem;
   color: var(--text-muted);
 }
+
 .highlight {
-  background: linear-gradient(180deg, var(--accent-light) 0%, var(--white) 100%);
+  background: var(--accent-light);
   border-top: 4px solid var(--accent);
   border-left: none;
 }
