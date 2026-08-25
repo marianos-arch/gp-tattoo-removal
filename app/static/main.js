@@ -45,7 +45,18 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const tr = document.createElement('tr');
-      const badgeClass = statusVal.toLowerCase() === 'approved' ? 'badge-success' : 'badge-pending';
+      
+      // Determine badge class while safely handling variations (spaces vs hyphens)
+      const cleanStatus = statusVal.toLowerCase();
+      let badgeClass = 'badge-pending';
+
+      if (cleanStatus === 'approved' || cleanStatus === 'successful') {
+        badgeClass = 'badge-success';
+      } else if (cleanStatus === 'in progress' || cleanStatus === 'inprogress') {
+        badgeClass = 'badge-in-progress';
+      } else if (cleanStatus === 'check-in' || cleanStatus === 'checkin') {
+        badgeClass = 'badge-checkin';
+      }
 
       tr.innerHTML = `
         <td><strong>Placement ${placementVal}</strong></td>
