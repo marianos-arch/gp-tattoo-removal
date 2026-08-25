@@ -3,18 +3,21 @@
 {% block content %}
 <!-- Hero Section -->
 <section class="hero">
-  <div class="container hero-content">
-    <div class="hero-text">
-      <h1>Free Tattoo Removal Services</h1>
-      <p class="hero-subtitle">We offer free tattoo removal weekly.</p>
-      <p class="hero-location">📍 1616 29th St, Bakersfield, CA 93301</p>
-      <div class="hero-actions">
-        <a href="tel:6616339133" class="btn-primary">Call (661) 633-9133</a>
-        <a href="#status" class="btn-secondary">Check Live Availability</a>
+  <div class="container hero-container">
+    <div class="hero-card">
+      <div class="hero-text">
+        <span class="badge-hero">Community Service</span>
+        <h1>Free Tattoo Removal Services</h1>
+        <p class="hero-subtitle">Weekly sessions provided by Garden Pathways.</p>
+        <p class="hero-location">📍 1616 29th St, Bakersfield, CA 93301</p>
+        <div class="hero-actions">
+          <a href="tel:6616339133" class="btn-primary">Call (661) 633-9133</a>
+          <a href="#status" class="btn-secondary">Check Live Availability</a>
+        </div>
       </div>
-    </div>
-    <div class="hero-media">
-      <img src="{{ url_for('static', filename='tattoo_removal.png') }}" alt="Garden Pathways Tattoo Removal" class="hero-img">
+      <div class="hero-media-wrapper">
+        <img src="{{ url_for('static', filename='tattoo_removal.png') }}" alt="Garden Pathways Tattoo Removal" class="hero-png-img">
+      </div>
     </div>
   </div>
 </section>
