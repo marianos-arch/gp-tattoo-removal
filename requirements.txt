@@ -1,5 +1,6 @@
 fastapi
 uvicorn[standard]
+gunicorn==21.2.0
 pandas>=2.2.3
 numpy
 psycopg2-binary
