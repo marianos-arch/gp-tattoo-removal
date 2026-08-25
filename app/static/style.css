@@ -34,7 +34,7 @@ body {
 .navbar {
   background: var(--white);
   border-bottom: 1px solid var(--border);
-  padding: 16px 0;
+  padding: 12px 0;
   position: sticky;
   top: 0;
   z-index: 10;
@@ -44,35 +44,27 @@ body {
   justify-content: space-between;
   align-items: center;
 }
-.logo {
-  font-weight: 700;
-  font-size: 1.25rem;
-  color: var(--primary);
+.logo-link {
+  display: flex;
+  align-items: center;
   text-decoration: none;
+}
+.nav-logo {
+  height: 60px;
+  width: auto;
+  display: block;
+  object-fit: contain;
 }
 .nav-links {
   display: flex;
   list-style: none;
-  gap: 24px;
+  gap: 20px;
   align-items: center;
 }
 .nav-links a {
   text-decoration: none;
   color: var(--text-dark);
   font-weight: 500;
-}
-/* Navbar Logo Styling */
-.logo-link {
-  display: flex;
-  align-items: center;
-  text-decoration: none;
-}
-
-.nav-logo {
-  height: 75px; /* Adjust height as needed */
-  width: auto;
-  display: block;
-  object-fit: contain;
 }
 
 /* Buttons */
@@ -84,6 +76,7 @@ body {
   text-decoration: none;
   font-weight: 600;
   display: inline-block;
+  text-align: center;
 }
 .btn-secondary {
   background: var(--primary-light);
@@ -93,6 +86,7 @@ body {
   text-decoration: none;
   font-weight: 600;
   display: inline-block;
+  text-align: center;
 }
 .btn-sm {
   background: var(--primary-light);
@@ -109,12 +103,11 @@ body {
   width: 100%;
 }
 
-/* Refined Hero Styles */
+/* Hero Section */
 .hero {
-  padding: 40px 0;
+  padding: 32px 0;
   background-color: var(--bg-light);
 }
-
 .hero-card {
   background: linear-gradient(135deg, var(--primary) 0%, #1a3818 100%);
   color: var(--white);
@@ -127,7 +120,6 @@ body {
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
   overflow: hidden;
 }
-
 .badge-hero {
   display: inline-block;
   background: rgba(255, 255, 255, 0.15);
@@ -140,33 +132,27 @@ body {
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
-
 .hero-text h1 {
   font-size: 2.25rem;
   font-weight: 700;
   line-height: 1.2;
   margin-bottom: 12px;
 }
-
 .hero-subtitle {
   font-size: 1.15rem;
   opacity: 0.9;
   margin-bottom: 8px;
 }
-
 .hero-location {
   font-size: 1rem;
   opacity: 0.8;
   margin-bottom: 28px;
 }
-
 .hero-actions {
   display: flex;
   gap: 16px;
   flex-wrap: wrap;
 }
-
-/* PNG Media Wrapper */
 .hero-media-wrapper {
   display: flex;
   justify-content: center;
@@ -177,33 +163,24 @@ body {
   padding: 20px;
   backdrop-filter: blur(4px);
 }
-
 .hero-png-img {
   max-width: 100%;
   height: auto;
   max-height: 260px;
-  object-fit: contain; /* Preserves natural image aspect ratio without cropping */
+  object-fit: contain;
   filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.25));
 }
 
-/* Mobile Responsiveness */
-@media (max-width: 868px) {
-  .hero-card {
-    grid-template-columns: 1fr;
-    padding: 32px 24px;
-    text-align: center;
-  }
-
-  .hero-actions {
-    justify-content: center;
-  }
-
-  .hero-png-img {
-    max-height: 200px;
-  }
+/* Dashboard & Cards */
+.status-section {
+  padding: 48px 0;
 }
-
-/* Cards */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+  margin-bottom: 28px;
+}
 .card {
   background: var(--white);
   border: 1px solid var(--border);
@@ -235,7 +212,7 @@ body {
   color: var(--accent);
 }
 
-/* Tables */
+/* Table Card */
 .table-card {
   padding: 0;
   overflow: hidden;
@@ -249,6 +226,7 @@ body {
 }
 .table-wrapper {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 table {
   width: 100%;
@@ -270,19 +248,10 @@ th {
   color: var(--text-muted);
   padding: 36px;
 }
-.badge {
-  display: inline-block;
-  padding: 2px 10px;
-  border-radius: 12px;
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-.badge-success { background: #d1fae5; color: #065f46; }
-.badge-pending { background: #fef3c7; color: #92400e; }
 
-/* Program Info Section */
+/* Program Info & Sidebar */
 .info-section {
-  padding: 64px 0;
+  padding: 56px 0;
   background-color: var(--white);
   border-top: 1px solid var(--border);
 }
@@ -325,16 +294,38 @@ th {
   color: var(--text-dark);
   font-size: 1.05rem;
 }
-
-/* Sidebar & CTA */
+.info-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.media-card {
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  background: var(--white);
+}
+.sidebar-video {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: var(--radius);
+}
+.sidebar-img {
+  width: 100%;
+  height: 220px;
+  display: block;
+  object-fit: cover;
+  border-radius: var(--radius);
+}
 .cta-box {
   background: var(--bg-light);
   border: 1px solid var(--border);
   padding: 24px;
   border-radius: var(--radius);
   text-align: center;
-  position: sticky;
-  top: 90px;
 }
 .cta-box p {
   font-weight: 600;
@@ -351,42 +342,62 @@ footer {
   font-size: 0.9rem;
 }
 
-/* Responsive Styles */
+
 @media (max-width: 768px) {
+  .container {
+    padding: 0 16px;
+  }
+
+  /* Navbar Adjustments */
+  .nav-container {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .nav-logo {
+    height: 48px;
+  }
+  .nav-links {
+    gap: 12px;
+    font-size: 0.9rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .nav-phone-btn {
+    padding: 6px 14px;
+    font-size: 0.85rem;
+  }
+
+  /* Hero Section Stacking */
+  .hero-card {
+    grid-template-columns: 1fr;
+    padding: 28px 20px;
+    text-align: center;
+  }
+  .hero-text h1 {
+    font-size: 1.75rem;
+  }
+  .hero-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .hero-actions .btn-primary,
+  .hero-actions .btn-secondary {
+    width: 100%;
+  }
+  .hero-png-img {
+    max-height: 180px;
+  }
+
+  /* Info Section & Sidebar Stacking */
   .info-grid {
     grid-template-columns: 1fr;
+    gap: 32px;
   }
-}
-
-/* Sidebar Media Styling */
-.info-sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.media-card {
-  width: 100%;
-  overflow: hidden;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
-  background: var(--white);
-}
-
-.sidebar-video {
-  width: 100%;
-  height: auto;
-  display: block;
-  border-radius: var(--radius);
-}
-
-.sidebar-img {
-  width: 100%;
-  height: auto;
-  display: block;
-  object-fit: cover;
-  border-radius: var(--radius);
+  
+  /* Tables Touch Optimization */
+  th, td {
+    padding: 10px 14px;
+  }
 }
 
 
