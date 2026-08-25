@@ -1,1 +1,57 @@
+{% extends "base.html" %}
 
+{% block content %}
+<section class="hero">
+  <div class="container">
+    <h1>Growing Opportunity, Step by Step</h1>
+    <p>Connecting individuals with community resources, job training, and supportive placement programs.</p>
+  </div>
+</section>
+
+<section id="status" class="status-section">
+  <div class="container">
+    <div class="section-header">
+      <h2>Live Program Availability</h2>
+      <p>Real-time placement updates from our waiting room tracker.</p>
+    </div>
+
+    <!-- Live Data Dashboard Grid -->
+    <div class="dashboard-grid">
+      <div class="card metric-card">
+        <h3>Total Placements</h3>
+        <span id="metric-placed" class="metric-number">--</span>
+        <span class="metric-sub">Confirmed Participants</span>
+      </div>
+
+      <div class="card metric-card highlight">
+        <h3>Open Spots Left</h3>
+        <span id="metric-spots" class="metric-number">--</span>
+        <span class="metric-sub">Immediate Availability</span>
+      </div>
+    </div>
+
+    <!-- Data Detail Table Card -->
+    <div class="card table-card">
+      <div class="card-header">
+        <h3>Placement Ledger</h3>
+        <button id="refresh-btn" class="btn-sm">↻ Refresh</button>
+      </div>
+      <div class="table-wrapper">
+        <table id="placements-table">
+          <thead>
+            <tr>
+              <th>Queue ID / Placement</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="table-body">
+            <tr>
+              <td colspan="2" class="loading-cell">Loading live queue status...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
