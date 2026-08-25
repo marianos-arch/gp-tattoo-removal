@@ -108,13 +108,25 @@
           <span class="refresh-icon">↻</span> Refresh
         </button>
       </div>
-    
-      <div id="in-progress-container" class="in-progress-wrapper">
-        <div class="status-state-box loading-state">
-          <div class="spinner"></div>
-          <span>Loading status...</span>
+
+
+      <!-- Who's Next (Queued) Card -->
+      <div class="card table-card live-status-card">
+        <div class="card-header">
+          <div class="header-title-group">
+            <div class="title-with-badge">
+              <h3>Who's Next</h3>
+              <span id="next-session-count" class="count-pill count-pill-amber">0 Queued</span>
+            </div>
+          </div>
+        </div>
+      
+        <div id="whos-next-container" class="in-progress-wrapper">
+          <div class="status-state-box">
+            <span>Loading queue status...</span>
+          </div>
         </div>
       </div>
-    </div>
+
 </section>
 {% endblock %}
