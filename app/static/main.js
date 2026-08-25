@@ -9,6 +9,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const MAX_CAPACITY = 25;
 
+  // Helper function to handle priority-aware labels cleanly
+  function getParticipantLabel(id) {
+    const cleanId = String(id).trim();
+    if (cleanId.toUpperCase().startsWith('P')) {
+      return `Priority Participant #${cleanId}`;
+    }
+    return `Participant #${cleanId}`;
+  }
+
   async function fetchLivePlacements() {
     try {
       inProgressContainer.innerHTML = `
@@ -37,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderData(rows) {
     if (!rows || rows.length === 0) {
       inProgressContainer.innerHTML = '<div class="status-state-box"><span>No sessions currently in progress</span></div>';
-      whosNextContainer.innerHTML = '<div class="status-state-box"><span>No upcoming placements in queue</span></div>';
+      whosNextContainer.innerHTML = '<div class="status-state-box"><span>No upcoming participants in queue</span></div>';
       if (activeCountPill) activeCountPill.textContent = '0 Active';
       if (nextCountPill) nextCountPill.textContent = '0 Queued';
       metricPlaced.textContent = 0;
@@ -79,7 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
         .map(item => `
           <div class="in-progress-card">
             <span class="badge badge-in-progress">${item.status}</span>
-            <span class="placement-id">Placement ${item.id}</span>
+            <span class="placement-id">${getParticipantLabel(item.id)}</span>
           </div>
         `).join('');
     } else {
@@ -93,11 +102,11 @@ document.addEventListener('DOMContentLoaded', () => {
         .map(item => `
           <div class="next-card">
             <span class="badge ${item.isCheckIn ? 'badge-checkin' : 'badge-pending'}">${item.status}</span>
-            <span class="placement-id">Placement ${item.id}</span>
+            <span class="placement-id">${getParticipantLabel(item.id)}</span>
           </div>
         `).join('');
     } else {
-      whosNextContainer.innerHTML = '<div class="status-state-box"><span>No upcoming placements in queue</span></div>';
+      whosNextContainer.innerHTML = '<div class="status-state-box"><span>No upcoming participants in queue</span></div>';
     }
 
     // Dashboard calculations
