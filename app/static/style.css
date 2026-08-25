@@ -459,3 +459,41 @@ footer {
     padding: 10px 14px;
   }
 }
+
+/* Live Tracker Badge Styles */
+.badge {
+  display: inline-block;
+  padding: 4px 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: 12px;
+  text-transform: capitalize;
+}
+
+.badge-pending {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.badge-checkin {
+  background-color: #e0f2fe;
+  color: #0369a1;
+}
+
+.badge-in-progress {
+  background-color: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+  animation: pulse 2s infinite; /* Optional: adds subtle attention draw */
+}
+
+.badge-success {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.7; }
+  100% { opacity: 1; }
+}
