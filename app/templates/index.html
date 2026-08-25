@@ -91,42 +91,53 @@
       </div>
     </div>
 
-    <!-- Currently In Progress Card -->
-    <div class="card table-card live-status-card">
-      <div class="card-header">
-        <div class="header-title-group">
-          <div class="title-with-badge">
-            <h3>Currently In Progress</h3>
-            <span id="active-session-count" class="count-pill">0 Active</span>
-          </div>
-          <span class="live-indicator">
-            <span class="pulse-dot"></span>
-            <span class="live-text">Live</span>
-          </span>
-        </div>
-        <button id="refresh-btn" class="btn-sm refresh-action">
-          <span class="refresh-icon">↻</span> Refresh
-        </button>
-      </div>
-
-
-      <!-- Who's Next (Queued) Card -->
+    <!-- Side-by-Side Status Cards Grid Wrapper -->
+    <div class="status-cards-grid">
+      <!-- Active Sessions Card -->
       <div class="card table-card live-status-card">
         <div class="card-header">
           <div class="header-title-group">
             <div class="title-with-badge">
-              <h3>Who's Next</h3>
-              <span id="next-session-count" class="count-pill count-pill-amber">0 Queued</span>
+              <h3>Active Session</h3>
+              <span id="active-session-count" class="count-pill">0 Active</span>
             </div>
+            <span class="live-indicator">
+              <span class="pulse-dot"></span>
+              <span class="live-text">Live Sync</span>
+            </span>
           </div>
+          <button id="refresh-btn" class="btn-sm refresh-action">
+            <span class="refresh-icon">↻</span> Refresh
+          </button>
         </div>
-      
-        <div id="whos-next-container" class="in-progress-wrapper">
-          <div class="status-state-box">
-            <span>Loading queue status...</span>
+
+        <div id="in-progress-container" class="in-progress-wrapper">
+          <div class="status-state-box loading-state">
+            <div class="spinner"></div>
+            <span>Checking active status...</span>
           </div>
         </div>
       </div>
 
+      <!-- Up Next Card -->
+      <div class="card table-card live-status-card">
+        <div class="card-header">
+          <div class="header-title-group">
+            <div class="title-with-badge">
+              <h3>Up Next in Queue</h3>
+              <span id="next-session-count" class="count-pill count-pill-amber">0 Waiting</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="whos-next-container" class="in-progress-wrapper">
+          <div class="status-state-box">
+            <span>Checking queue status...</span>
+          </div>
+        </div>
+      </div>
+    </div> <!-- End status-cards-grid -->
+
+  </div> <!-- End container -->
 </section>
 {% endblock %}
