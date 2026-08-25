@@ -93,19 +93,29 @@
     </div>
 
     <!-- Currently In Progress Card -->
-    <div class="card table-card">
+    <div class="card table-card live-status-card">
       <div class="card-header">
         <div class="header-title-group">
-          <h3>Currently In Progress</h3>
-          <span class="live-indicator"><span class="pulse-dot"></span> Live Sync Active</span>
+          <div class="title-with-badge">
+            <h3>Currently In Progress</h3>
+            <span id="active-session-count" class="count-pill">0 Active</span>
+          </div>
+          <span class="live-indicator">
+            <span class="pulse-dot"></span>
+            <span class="live-text">Live Sync Active</span>
+          </span>
         </div>
-        <button id="refresh-btn" class="btn-sm">↻ Refresh</button>
+        <button id="refresh-btn" class="btn-sm refresh-action">
+          <span class="refresh-icon">↻</span> Refresh
+        </button>
       </div>
-
+    
       <div id="in-progress-container" class="in-progress-wrapper">
-        <div class="loading-cell">Loading session status...</div>
+        <div class="status-state-box loading-state">
+          <div class="spinner"></div>
+          <span>Loading session status...</span>
+        </div>
       </div>
     </div>
-  </div>
 </section>
 {% endblock %}
