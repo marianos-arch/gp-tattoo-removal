@@ -70,15 +70,15 @@ document.addEventListener('DOMContentLoaded', () => {
         placedCount++;
       }
 
-      // Filter In Progress vs. Queued (Check-In or Pending)
+      // Filter In Progress vs. Queued (Check-In ONLY, excluding Pending)
       if (statusVal === 'in progress' || statusVal === 'inprogress') {
         inProgressList.push({ id: placementVal, status: rawStatus });
-      } else if (statusVal === 'check-in' || statusVal === 'checkin' || statusVal === 'pending') {
-        whosNextList.push({ id: placementVal, status: rawStatus, isCheckIn: statusVal.includes('check') });
+      } else if (statusVal === 'check-in' || statusVal === 'checkin') {
+        whosNextList.push({ id: placementVal, status: rawStatus, isCheckIn: true });
       }
     });
 
-    // Update Pills (Displays total queued count)
+    // Update Pills (Displays total checked-in count in queue)
     if (activeCountPill) activeCountPill.textContent = `${inProgressList.length} Active`;
     if (nextCountPill) nextCountPill.textContent = `${whosNextList.length} Queued`;
 
@@ -95,18 +95,18 @@ document.addEventListener('DOMContentLoaded', () => {
       inProgressContainer.innerHTML = '<div class="status-state-box"><span>No sessions currently in progress</span></div>';
     }
 
-    // Render ONLY the next 2 cards in "Up Next" Queue
+    // Render ONLY the next 2 checked-in cards in "Up Next" Queue
     if (whosNextList.length > 0) {
       whosNextContainer.innerHTML = whosNextList
         .slice(0, 2)
         .map(item => `
           <div class="next-card">
-            <span class="badge ${item.isCheckIn ? 'badge-checkin' : 'badge-pending'}">${item.status}</span>
+            <span class="badge badge-checkin">${item.status}</span>
             <span class="placement-id">${getParticipantLabel(item.id)}</span>
           </div>
         `).join('');
     } else {
-      whosNextContainer.innerHTML = '<div class="status-state-box"><span>No upcoming participants in queue</span></div>';
+      whosNextContainer.innerHTML = '<div class="status-state-box"><span>No upcoming checked-in participants in queue</span></div>';
     }
 
     // Dashboard calculations
