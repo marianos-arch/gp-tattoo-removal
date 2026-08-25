@@ -5,7 +5,7 @@ import requests
 app = Flask(__name__)
 
 # Replace with your actual deployed Apps Script Web App URL
-APPS_SCRIPT_URL = "https://script.google.com/macros/s/YOUR_SCRIPT_ID_HERE/exec"
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzMluI9ccaJ2uPdrdmKCrbeDr3rwF94YGiSrodvLjHhbgaon5aWMkbC69I0egRUQIqS/exec"
 
 @app.route("/")
 def index():
