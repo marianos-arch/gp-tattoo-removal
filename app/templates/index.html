@@ -74,7 +74,7 @@
   <div class="container">
     <div class="section-header text-center">
       <h2>Live Program Availability</h2>
-      <p>Real-time placement updates from our waiting room tracker.</p>
+      <p>Real-time updates directly from our waiting room tracker.</p>
     </div>
 
     <!-- Live Data Dashboard Grid -->
@@ -92,30 +92,18 @@
       </div>
     </div>
 
-    <!-- Placement Ledger Table Card -->
+    <!-- Currently In Progress Card -->
     <div class="card table-card">
       <div class="card-header">
         <div class="header-title-group">
-          <h3>Placement Ledger</h3>
+          <h3>Currently In Progress</h3>
           <span class="live-indicator"><span class="pulse-dot"></span> Live Sync Active</span>
         </div>
         <button id="refresh-btn" class="btn-sm">↻ Refresh</button>
       </div>
 
-      <div class="table-wrapper">
-        <table id="placements-table">
-          <thead>
-            <tr>
-              <th>Queue ID / Placement</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="table-body">
-            <tr>
-              <td colspan="2" class="loading-cell">Loading live queue status...</td>
-            </tr>
-          </tbody>
-        </table>
+      <div id="in-progress-container" class="in-progress-wrapper">
+        <div class="loading-cell">Loading session status...</div>
       </div>
     </div>
   </div>
