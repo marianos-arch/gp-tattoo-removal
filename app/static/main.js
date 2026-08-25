@@ -69,11 +69,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // Update Pills
+    // Update Pills (Displays total queued count)
     if (activeCountPill) activeCountPill.textContent = `${inProgressList.length} Active`;
     if (nextCountPill) nextCountPill.textContent = `${whosNextList.length} Queued`;
 
-    // Render "In Progress" Cards
+    // Render "Active Session" Cards
     if (inProgressList.length > 0) {
       inProgressContainer.innerHTML = inProgressList
         .map(item => `
@@ -86,9 +86,10 @@ document.addEventListener('DOMContentLoaded', () => {
       inProgressContainer.innerHTML = '<div class="status-state-box"><span>No sessions currently in progress</span></div>';
     }
 
-    // Render "Who's Next" Cards
+    // Render ONLY the next 2 cards in "Up Next" Queue
     if (whosNextList.length > 0) {
       whosNextContainer.innerHTML = whosNextList
+        .slice(0, 2)
         .map(item => `
           <div class="next-card">
             <span class="badge ${item.isCheckIn ? 'badge-checkin' : 'badge-pending'}">${item.status}</span>
