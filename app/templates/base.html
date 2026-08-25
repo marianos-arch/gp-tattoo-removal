@@ -9,9 +9,12 @@
 <body>
   <header class="navbar">
     <div class="container nav-container">
-      <a href="/" class="logo">🌱 Garden Pathways</a>
+      <a href="/" class="logo-link">
+        <img src="{{ url_for('static', filename='GP_Logo.jpg') }}" alt="Garden Pathways Logo" class="nav-logo">
+      </a>
       <nav>
         <ul class="nav-links">
+          <li><a href="https://gardenpathways.org" target="_blank" rel="noopener noreferrer">Main Site ↗</a></li>
           <li><a href="#status">Live Status</a></li>
           <li><a href="tel:6616339133" class="btn-secondary">Call (661) 633-9133</a></li>
         </ul>
