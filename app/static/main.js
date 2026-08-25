@@ -4,6 +4,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const tableBody = document.getElementById('table-body');
   const refreshBtn = document.getElementById('refresh-btn');
 
+  const MAX_CAPACITY = 25; // Matching Google Apps Script daily capacity cap
+
   async function fetchLivePlacements() {
     try {
       tableBody.innerHTML = '<tr><td colspan="2" class="loading-cell">Updating data...</td></tr>';
@@ -12,9 +14,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!response.ok) throw new Error('Failed to fetch data');
       
       const data = await response.json();
-      
-      // Expected payload format: [ [ "Placement ID / Name", "Status" ], ... ]
-      // Adjust indexes depending on your Apps Script output array mapping
       renderData(data);
     } catch (err) {
       console.error(err);
@@ -25,36 +24,42 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderData(rows) {
     if (!rows || rows.length === 0) {
       tableBody.innerHTML = '<tr><td colspan="2" class="loading-cell">No active records found.</td></tr>';
+      metricPlaced.textContent = 0;
+      metricSpots.textContent = MAX_CAPACITY;
       return;
     }
 
     let placedCount = 0;
-    let availableCount = 0;
     tableBody.innerHTML = '';
 
     rows.forEach(row => {
-      const placementName = row[0] || 'Unassigned';
-      const status = row[1] || 'Pending';
+      const placementVal = String(row[0] || '').trim();
+      const statusVal = String(row[1] || 'Pending').trim();
 
-      if (status.toLowerCase() === 'successful' || status.toLowerCase() === 'placed') {
+      // Check if entry has a valid placement (Numeric 1-25 or Priority P1-P5)
+      const isNumeric = !isNaN(parseInt(placementVal, 10));
+      const isPriority = placementVal.toUpperCase().startsWith('P');
+
+      if (isNumeric || isPriority) {
         placedCount++;
-      } else {
-        availableCount++;
       }
 
       const tr = document.createElement('tr');
-      const badgeClass = status.toLowerCase() === 'successful' ? 'badge-success' : 'badge-pending';
+      const badgeClass = statusVal.toLowerCase() === 'approved' ? 'badge-success' : 'badge-pending';
 
       tr.innerHTML = `
-        <td><strong>${placementName}</strong></td>
-        <td><span class="badge ${badgeClass}">${status}</span></td>
+        <td><strong>Placement ${placementVal}</strong></td>
+        <td><span class="badge ${badgeClass}">${statusVal}</span></td>
       `;
       tableBody.appendChild(tr);
     });
 
-    // Update Top Counters
+    // Correct Metrics Calculation: 25 max capacity minus placed count
+    const spotsLeft = Math.max(0, MAX_CAPACITY - placedCount);
+
+    // Update Dashboard UI
     metricPlaced.textContent = placedCount;
-    metricSpots.textContent = availableCount;
+    metricSpots.textContent = spotsLeft;
   }
 
   refreshBtn.addEventListener('click', fetchLivePlacements);
