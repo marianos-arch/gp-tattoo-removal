@@ -69,7 +69,7 @@ body {
 }
 
 .nav-logo {
-  height: 55px; /* Adjust height as needed */
+  height: 75px; /* Adjust height as needed */
   width: auto;
   display: block;
   object-fit: contain;
