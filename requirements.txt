@@ -11,5 +11,6 @@ requests
 openpyxl
 jinja2
 httpx
+Authlib
 
 python-multipart
