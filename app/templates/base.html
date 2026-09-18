@@ -12,10 +12,19 @@
       <a href="/" class="logo-link">
         <img src="{{ url_for('static', filename='GP_Logo.jpg') }}" alt="Garden Pathways Logo" class="nav-logo">
       </a>
+
       <nav>
         <ul class="nav-links">
           <li><a href="https://gardenpathways.org" target="_blank" rel="noopener noreferrer">Main Site ↗</a></li>
           <li><a href="#status">Live Status</a></li>
+          
+          <!-- Direct link to Admin page; non-logged-in users will see the login notice -->
+          <li>
+            <a href="{{ url_for('admin_dashboard') }}" style="font-weight: 600; color: var(--primary-bright);">
+              Admin Portal
+            </a>
+          </li>
+      
           <li><a href="tel:6616339133" class="btn-secondary nav-phone-btn">Call (661) 633-9133</a></li>
         </ul>
       </nav>
