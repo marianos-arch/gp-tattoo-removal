@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Shell - Garden Pathways{% endblock %}
+
+{% block content %}
+<section class="container" style="padding: 40px 0;">
+  <div style="display: grid; grid-template-columns: 240px 1fr; gap: 24px; align-items: start;">
+    
+    <!-- Sidebar -->
+    <aside style="background: var(--white); padding: 20px; border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow);">
+      <h3 style="font-size: 1.1rem; color: var(--primary); margin-bottom: 16px;">Admin Navigation</h3>
+      <ul style="list-style: none; display: flex; flex-direction: column; gap: 10px;">
+        <li><a href="/admin" style="text-decoration: none; font-weight: 600; color: var(--primary-bright);">Dashboard</a></li>
+        <!-- Future modules can be added here -->
+      </ul>
+      <hr class="divider" style="margin: 20px 0;">
+      <a href="/logout" class="btn-sm" style="display: block; text-align: center; background: #fee2e2; color: #991b1b; text-decoration: none;">Log Out</a>
+    </aside>
+
+    <!-- Main Shell Area -->
+    <main style="background: var(--white); padding: 32px; border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <h2>Admin Dashboard</h2>
+        <span style="font-size: 0.85rem; color: var(--text-muted); background: var(--bg-light); padding: 6px 12px; border-radius: 20px;">
+          Signed in as <strong>{{ session['user']['email'] }}</strong>
+        </span>
+      </div>
+
+      <!-- Placeholder content container -->
+      <div style="border: 2px dashed var(--border); padding: 40px; text-align: center; color: var(--text-muted); border-radius: 8px;">
+        <p><strong>Admin Shell Placeholder</strong></p>
+        <p style="font-size: 0.9rem;">Build new admin controls and features directly inside this shell container.</p>
+      </div>
+    </main>
+
+  </div>
+</section>
+{% endblock %}
