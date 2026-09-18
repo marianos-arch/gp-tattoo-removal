@@ -10,7 +10,7 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key-change-me")
 
 # List of Google emails authorized to access the admin shell
-ADMIN_EMAILS = os.environ.get("ADMIN_EMAILS", "admin@gardenpathways.org").split(",")
+ADMIN_EMAILS = os.environ.get("ADMIN_EMAILS", "marianos@gardenpathways.org").split(",")
 
 # Google OAuth Setup
 oauth = OAuth(app)
