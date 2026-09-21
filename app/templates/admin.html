@@ -865,7 +865,7 @@ document.addEventListener("DOMContentLoaded", function() {
           draggedRow = tr;
           tr.classList.add("dragging");
         });
-        tr.addEventListener("dragend", () => {
+        tr.addEventListener("dragend", async () => {
           tr.classList.remove("dragging");
           draggedRow = null;
           await updatePlacementsAfterReorder();
@@ -955,7 +955,7 @@ document.addEventListener("DOMContentLoaded", function() {
       }
     }, { passive: false });
 
-    tr.addEventListener('touchend', () => {
+    tr.addEventListener('touchend', async () => {
       clearTimeout(holdTimer);
       if (isHolding) {
         tr.classList.remove('mobile-holding', 'dragging');
