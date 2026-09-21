@@ -12,7 +12,7 @@ app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key-change-me")
 
-ADMIN_EMAILS = os.environ.get("ADMIN_EMAILS", "marianos@gardenpathways.org").split(",")
+ADMIN_EMAILS = [email.strip() for email in os.environ.get("ADMIN_EMAILS", "marianos@gardenpathways.org").split(",") if email.strip()]
 
 # Google OAuth Setup
 oauth = OAuth(app)
@@ -77,7 +77,6 @@ def search_clients():
         spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
         
         matches = []
-        # Target the specific initial tab if available, otherwise fallback to all letters
         first_letter = query[0].upper()
         letters_to_check = [first_letter] if first_letter in string.ascii_uppercase else string.ascii_uppercase
 
@@ -96,7 +95,7 @@ def search_clients():
         return jsonify({"error": str(e), "results": []}), 500
 
 # Fetch Active Waiting Room Queue
-@app.route("/api/waiting-room")
+@app.route("/api/waiting-room", methods=["GET"])
 @admin_required
 def get_waiting_room():
     try:
@@ -107,53 +106,54 @@ def get_waiting_room():
         records = ws.get_all_records()
         queue = []
         for idx, row in enumerate(records, start=2):  # Row 1 is header row
-            if row.get("Name "):  # Skip empty rows
+            # Strip key names to remove trailing spaces in Google Sheet headers
+            row_clean = {str(k).strip(): v for k, v in row.items()}
+            
+            if row_clean.get("Name"):
                 queue.append({
                     "row_index": idx,
-                    "Name": row.get("Name "),
-                    "Placement": row.get("Placement"),
-                    "Action": row.get("Action")
+                    "Name": row_clean.get("Name", ""),
+                    "Placement": str(row_clean.get("Placement", "")),  # Coerce to string for JS match
+                    "Action": row_clean.get("Action", "")
                 })
         return jsonify({"queue": queue})
     except Exception as e:
         return jsonify({"error": str(e), "queue": []}), 500
 
 # Append new client to Waiting Room
-# Fetch Active Waiting Room Queue
-@app.route("/api/waiting-room")
+@app.route("/api/waiting-room/add", methods=["POST"])
 @admin_required
-def get_waiting_room():
+def add_to_waiting_room():
     try:
+        data = request.json or {}
+        name = data.get("name")
+        placement = data.get("placement", "")
+        action = data.get("action", "Pending")
+
+        if not name:
+            return jsonify({"error": "Name is required"}), 400
+
         gc = get_sheets_client()
         spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
         ws = spreadsheet.worksheet("Waiting Room")
-        
-        records = ws.get_all_records()
-        queue = []
-        for idx, row in enumerate(records, start=2):  # Row 1 is header row
-            # Helper to retrieve dict values flexibly ignoring surrounding spaces in header keys
-            row_clean = {str(k).strip(): v for k, v in row.items()}
-            
-            if row_clean.get("Name"):  # Check name
-                queue.append({
-                    "row_index": idx,
-                    "Name": row_clean.get("Name", ""),
-                    "Placement": str(row_clean.get("Placement", "")),  # Convert to string for JS comparison
-                    "Action": row_clean.get("Action", "")
-                })
-        return jsonify({"queue": queue})
+
+        # Append row format: [Row, Name, Date, Placement, Action]
+        ws.append_row(["", name, "", placement, action])
+        return jsonify({"status": "success"})
     except Exception as e:
-        return jsonify({"error": str(e), "queue": []}), 500
-        
+        return jsonify({"error": str(e)}), 500
 
 # Update existing Placement and Action values in Waiting Room
 @app.route("/api/waiting-room/update", methods=["POST"])
 @admin_required
 def update_waiting_room():
     try:
-        data = request.json
+        data = request.json or {}
         row_idx = data.get("row_index")
         
+        if not row_idx:
+            return jsonify({"error": "Row index is required"}), 400
+
         gc = get_sheets_client()
         spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
         ws = spreadsheet.worksheet("Waiting Room")
@@ -162,6 +162,26 @@ def update_waiting_room():
         ws.update_cell(row_idx, 4, data.get("placement"))
         ws.update_cell(row_idx, 5, data.get("action"))
         
+        return jsonify({"status": "success"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Delete row from Waiting Room
+@app.route("/api/waiting-room/delete", methods=["POST"])
+@admin_required
+def delete_waiting_room_row():
+    try:
+        data = request.json or {}
+        row_idx = data.get("row_index")
+        
+        if not row_idx:
+            return jsonify({"error": "Row index is required"}), 400
+
+        gc = get_sheets_client()
+        spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
+        ws = spreadsheet.worksheet("Waiting Room")
+        
+        ws.delete_rows(int(row_idx))
         return jsonify({"status": "success"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
