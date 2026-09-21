@@ -1,6 +1,7 @@
 import os
 import json
 import string
+import requests
 from functools import wraps
 from flask import Flask, render_template, jsonify, session, redirect, url_for, request
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -37,6 +38,27 @@ def get_sheets_client():
     ]
     creds = Credentials.from_service_account_info(info, scopes=scopes)
     return gspread.authorize(creds)
+
+def trigger_apps_script(row_index, action=None, placement=None):
+    """Sends payload to Apps Script doPost endpoint to trigger handleEdit automation."""
+    url = os.environ.get("APPS_SCRIPT_URL")
+    if not url:
+        print("Warning: APPS_SCRIPT_URL environment variable is not set.")
+        return False
+
+    payload = {
+        "row_index": row_index,
+        "action": action,
+        "placement": placement
+    }
+
+    try:
+        # Calls the doPost function deployed in Google Apps Script
+        response = requests.post(url, json=payload, timeout=10)
+        return response.ok
+    except Exception as e:
+        print(f"Failed to call Apps Script: {e}")
+        return False
 
 def admin_required(f):
     @wraps(f)
@@ -150,19 +172,31 @@ def update_waiting_room():
     try:
         data = request.json or {}
         row_idx = data.get("row_index")
+        action = data.get("action")
+        placement = data.get("placement")
         
         if not row_idx:
             return jsonify({"error": "Row index is required"}), 400
 
-        gc = get_sheets_client()
-        spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
-        ws = spreadsheet.worksheet("Waiting Room")
-        
-        # Column 4 = Placement, Column 5 = Action
-        ws.update_cell(row_idx, 4, data.get("placement"))
-        ws.update_cell(row_idx, 5, data.get("action"))
-        
-        return jsonify({"status": "success"})
+        # Delegate execution to Apps Script's doPost handler
+        # This will update the cells AND execute your full handleEdit workflow
+        success = trigger_apps_script(row_idx, action=action, placement=placement)
+
+        if success:
+            return jsonify({"status": "success"})
+        else:
+            # Fallback to direct gspread update if Apps Script call fails
+            gc = get_sheets_client()
+            spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
+            ws = spreadsheet.worksheet("Waiting Room")
+            
+            if placement is not None:
+                ws.update_cell(row_idx, 4, placement)
+            if action is not None:
+                ws.update_cell(row_idx, 5, action)
+                
+            return jsonify({"status": "success", "note": "Updated via gspread direct write"})
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -233,8 +267,6 @@ def get_logs():
 
     except Exception as e:
         return jsonify({"error": str(e), "logs": []}), 500
-        
-    
 
 @app.route("/admin/login")
 def login_page():
