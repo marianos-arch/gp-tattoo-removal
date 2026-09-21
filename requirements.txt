@@ -14,5 +14,7 @@ httpx
 Authlib
 gspread
 google-auth
+Werkzeug
+
 
 python-multipart
