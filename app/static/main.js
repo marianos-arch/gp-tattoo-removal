@@ -125,6 +125,30 @@ document.addEventListener('DOMContentLoaded', () => {
     
     let draggedRow = null;
 
+    // RESTORED: Auto-guess / Auto-complete names listener
+    if (clientSearchInput && clientList) {
+      clientSearchInput.addEventListener("input", async function() {
+        const query = this.value.trim();
+        if (query.length < 1) return;
+
+        try {
+          const res = await fetch(`/api/clients/search?q=${encodeURIComponent(query)}`);
+          if (!res.ok) return;
+
+          const matches = await res.json();
+          clientList.innerHTML = "";
+
+          matches.forEach(item => {
+            const option = document.createElement("option");
+            option.value = typeof item === 'string' ? item : (item.Name || item.name);
+            clientList.appendChild(option);
+          });
+        } catch (err) {
+          console.error("Error fetching auto-complete names:", err);
+        }
+      });
+    }
+
     function getPlacementOptionsHTML(selectedValue) {
       const valStr = selectedValue !== null && selectedValue !== undefined ? String(selectedValue).trim() : "";
       let html = `<option value="">--</option>`;
@@ -211,9 +235,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function autoSaveSingleParticipant(tr) {
-      const rowIndex = tr.dataset.rowIndex;
+      const rawRowIndex = tr.dataset.rowIndex;
+      const rowIndex = parseInt(rawRowIndex, 10);
       const placement = tr.querySelector(".placement-select").value;
       const action = tr.querySelector(".action-select").value;
+
+      if (isNaN(rowIndex)) {
+        console.error("Invalid row index for auto-save:", rawRowIndex);
+        showAlert("Error saving: Invalid Row", "#fee2e2", "#991b1b");
+        return;
+      }
 
       const mobPlacement = tr.querySelector(".mob-place-label");
       const mobAction = tr.querySelector(".mob-status-label");
@@ -226,11 +257,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch("/api/waiting-room/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ row_index: parseInt(rowIndex), placement, action })
+        body: JSON.stringify({ row_index: rowIndex, placement, action })
       });
 
       if (res.ok) {
         showAlert("Updated!", "#dcfce7", "#166534");
+        // Re-sync queue to ensure row indexes align after status changes
+        await loadWaitingRoom();
       } else {
         showAlert("Update failed", "#fee2e2", "#991b1b");
       }
@@ -449,9 +482,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const placementSelect = tr.querySelector(".placement-select");
         const mobPlacementLabel = tr.querySelector(".mob-place-label");
         const actionSelect = tr.querySelector(".action-select");
-        const rowIndex = tr.dataset.rowIndex;
+        const rowIndex = parseInt(tr.dataset.rowIndex, 10);
         
-        if (placementSelect && placementSelect.value !== newPlacement) {
+        if (placementSelect && placementSelect.value !== newPlacement && !isNaN(rowIndex)) {
           placementSelect.value = newPlacement;
           if (mobPlacementLabel) mobPlacementLabel.innerText = `${newPlacement}.`;
           
@@ -459,7 +492,7 @@ document.addEventListener('DOMContentLoaded', () => {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              row_index: parseInt(rowIndex),
+              row_index: rowIndex,
               placement: newPlacement,
               action: actionSelect.value
             })
@@ -470,6 +503,7 @@ document.addEventListener('DOMContentLoaded', () => {
       
       if (updatedCount > 0) {
         showAlert("Queue order saved!", "#dcfce7", "#166534");
+        await loadWaitingRoom();
       }
     }
 
@@ -510,7 +544,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const tr = cb.closest("tr");
           return {
             tr,
-            row_index: parseInt(tr.dataset.rowIndex),
+            row_index: parseInt(tr.dataset.rowIndex, 10),
             placement: tr.querySelector(".placement-select").value,
             action: actionVal
           };
@@ -525,13 +559,17 @@ document.addEventListener('DOMContentLoaded', () => {
           await fetch("/api/waiting-room/update", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(item)
+            body: JSON.stringify({
+              row_index: item.row_index,
+              placement: item.placement,
+              action: item.action
+            })
           });
           await new Promise(r => setTimeout(r, 100));
         }
 
         showAlert("Selected status updated!", "#dcfce7", "#166534");
-        loadWaitingRoom();
+        await loadWaitingRoom();
       });
     }
 
@@ -548,7 +586,7 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let i = 0; i < selectedCheckboxes.length; i++) {
           const cb = selectedCheckboxes[i];
           const tr = cb.closest("tr");
-          const rowIndex = parseInt(tr.dataset.rowIndex);
+          const rowIndex = parseInt(tr.dataset.rowIndex, 10);
 
           await fetch("/api/waiting-room/delete", {
             method: "POST",
@@ -558,7 +596,7 @@ document.addEventListener('DOMContentLoaded', () => {
           await new Promise(r => setTimeout(r, 100));
         }
 
-        loadWaitingRoom();
+        await loadWaitingRoom();
         showAlert("Selected row(s) deleted successfully!", "#dcfce7", "#166534");
       });
     }
