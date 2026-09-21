@@ -133,7 +133,7 @@ def get_waiting_room():
 
         queue = []
         # Row 1 is header (index 0). Data starts at Row 2 (index 1) or Row 3
-        for idx, row in enumerate(all_rows[1:], start=2):
+        for idx, row in enumerate(all_rows[1:], start=3):
             if not row or not any(row):
                 continue
             
