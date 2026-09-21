@@ -1,6 +1,7 @@
 import os
 import json
 import string
+import re
 import requests
 from functools import wraps
 from flask import Flask, render_template, jsonify, session, redirect, url_for, request
@@ -125,19 +126,40 @@ def get_waiting_room():
         spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
         ws = spreadsheet.worksheet("Waiting Room")
         
-        records = ws.get_all_records()
+        # Pull raw rows starting from row 1 (0-indexed)
+        all_rows = ws.get_all_values()
+        if len(all_rows) < 2:
+            return jsonify({"queue": []})
+
         queue = []
-        for idx, row in enumerate(records, start=2):  # Row 1 is header row
-            # Strip key names to remove trailing spaces in Google Sheet headers
-            row_clean = {str(k).strip(): v for k, v in row.items()}
+        # Row 1 is header (index 0). Data starts at Row 2 (index 1) or Row 3
+        for idx, row in enumerate(all_rows[1:], start=2):
+            if not row or not any(row):
+                continue
             
-            if row_clean.get("Name"):
+            # Map columns explicitly: Col B (idx 1) = Name, Col D (idx 3) = Placement, Col E (idx 4) = Action
+            name = row[1].strip() if len(row) > 1 else ""
+            placement_val = str(row[3]).strip() if len(row) > 3 else ""
+            action_val = str(row[4]).strip() if len(row) > 4 else ""
+            
+            if name:
                 queue.append({
                     "row_index": idx,
-                    "Name": row_clean.get("Name", ""),
-                    "Placement": str(row_clean.get("Placement", "")),  # Coerce to string for JS match
-                    "Action": row_clean.get("Action", "")
+                    "Name": name,
+                    "Placement": placement_val,
+                    "Action": action_val
                 })
+        
+        # Sort queue by numeric placement value (e.g. 1, 2, 3...) or string if text (e.g., "OVERFLOW")
+        def parse_placement_sort(item):
+            val = item["Placement"]
+            nums = re.findall(r'\d+', val)
+            if nums:
+                return (0, int(nums[0]))
+            return (1, val.lower())
+
+        queue.sort(key=parse_placement_sort)
+
         return jsonify({"queue": queue})
     except Exception as e:
         return jsonify({"error": str(e), "queue": []}), 500
@@ -179,7 +201,6 @@ def update_waiting_room():
             return jsonify({"error": "Row index is required"}), 400
 
         # Delegate execution to Apps Script's doPost handler
-        # This will update the cells AND execute your full handleEdit workflow
         success = trigger_apps_script(row_idx, action=action, placement=placement)
 
         if success:
