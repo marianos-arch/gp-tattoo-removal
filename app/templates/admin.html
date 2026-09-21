@@ -9,11 +9,11 @@
     <!-- Sidebar -->
     <aside style="background: var(--white); padding: 20px; border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow);">
       <h3 style="font-size: 1.1rem; color: var(--primary); margin-bottom: 16px;">Admin Navigation</h3>
-      <ul style="list-style: none; display: flex; flex-direction: column; gap: 10px;">
+      <ul style="list-style: none; display: flex; flex-direction: column; gap: 10px; padding: 0;">
         <li><a href="/admin" style="text-decoration: none; font-weight: 600; color: var(--primary-bright);">Dashboard</a></li>
       </ul>
       <hr class="divider" style="margin: 20px 0;">
-      <a href="/logout" class="btn-sm" style="display: block; text-align: center; background: #fee2e2; color: #991b1b; text-decoration: none;">Log Out</a>
+      <a href="/logout" class="btn-sm" style="display: block; text-align: center; background: #fee2e2; color: #991b1b; text-decoration: none; border-radius: 6px; padding: 8px;">Log Out</a>
     </aside>
 
     <!-- Main Shell Area -->
@@ -26,34 +26,76 @@
       </div>
 
       <!-- Add Client Section with Autocomplete -->
-      <section style="background: var(--bg-light); padding: 20px; border-radius: 8px; margin-bottom: 32px; border: 1px solid var(--border);">
+      <section style="background: var(--bg-light); padding: 20px; border-radius: 8px; margin-bottom: 24px; border: 1px solid var(--border);">
         <h3 style="font-size: 1rem; margin-bottom: 12px;">Add Client to Waiting Room</h3>
-        <form id="addClientForm" style="display: flex; gap: 12px; flex-wrap: wrap;">
-          <div style="flex: 2; min-width: 200px; position: relative;">
+        <form id="addClientForm" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+          <div style="flex: 2; min-width: 200px;">
             <input type="text" id="clientSearch" name="client_name" list="clientList" placeholder="Start typing client name..." autocomplete="off" required style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
             <datalist id="clientList"></datalist>
           </div>
-          <div style="flex: 1; min-width: 120px;">
-            <input type="text" id="placementInput" name="placement" placeholder="Placement (e.g. 1, P1)" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
-          </div>
-          <div style="flex: 1; min-width: 120px;">
-            <select id="actionInput" name="action" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
-              <option value="Check-in">Check-in</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Completed">Completed</option>
+          <div style="flex: 1; min-width: 130px;">
+            <select id="placementInput" name="placement" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
+              <option value="">Placement...</option>
+              <option value="P1">P1 (Priority 1)</option>
+              <option value="P2">P2 (Priority 2)</option>
+              <option value="P3">P3 (Priority 3)</option>
+              <option value="P4">P4 (Priority 4)</option>
+              <option value="P5">P5 (Priority 5)</option>
+              {% for i in range(1, 26) %}
+                <option value="{{ i }}">{{ i }}</option>
+              {% endfor %}
+              <option value="Overflow">Overflow</option>
             </select>
           </div>
-          <button type="submit" class="btn" style="padding: 10px 20px;">Add Row</button>
+          <div style="flex: 1; min-width: 130px;">
+            <select id="actionInput" name="action" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
+              <option value="Pending">Pending</option>
+              <option value="Check-in" selected>Check-in</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Successful">Successful</option>
+              <option value="No-Show">No-Show</option>
+              <option value="Rejected">Rejected</option>
+            </select>
+          </div>
+          <button type="submit" class="btn" style="padding: 10px 20px; background: var(--primary-bright); color: white; border: none; border-radius: 6px; cursor: pointer;">Add Client</button>
         </form>
       </section>
 
-      <!-- Waiting Room Table -->
+      <!-- Search, Filter & Bulk Controls Toolbar -->
+      <section style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <button id="selectAllBtn" class="btn-sm" style="background: #e2e8f0; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">Select All</button>
+          <button id="unselectAllBtn" class="btn-sm" style="background: #e2e8f0; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">Unselect All</button>
+          
+          <select id="bulkActionSelect" style="padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border);">
+            <option value="">-- Bulk Set Action --</option>
+            <option value="Check-in">Check-in</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Successful">Successful</option>
+            <option value="No-Show">No-Show</option>
+            <option value="Pending">Pending</option>
+            <option value="Rejected">Rejected</option>
+          </select>
+          <button id="applyBulkActionBtn" class="btn-sm" style="background: var(--primary-bright); color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">Apply Bulk</button>
+          <button id="deleteSelectedBtn" class="btn-sm" style="background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; padding: 6px 12px; border-radius: 4px; cursor: pointer;">Delete Selected</button>
+        </div>
+
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="tableSearch" placeholder="Filter queue..." style="padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border); font-size: 0.85rem;">
+        </div>
+      </section>
+
+      <!-- Batch Status Alert -->
+      <div id="statusAlert" style="display: none; padding: 10px; margin-bottom: 16px; border-radius: 6px; font-size: 0.85rem; font-weight: 600;"></div>
+
+      <!-- Waiting Room Queue Table -->
       <section>
-        <h3 style="font-size: 1rem; margin-bottom: 12px;">Active Waiting Room</h3>
         <div style="overflow-x: auto;">
-          <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+          <table id="queueTable" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
             <thead>
               <tr style="border-bottom: 2px solid var(--border); background: var(--bg-light);">
+                <th style="padding: 10px; width: 30px;">::</th>
+                <th style="padding: 10px; width: 40px;"><input type="checkbox" id="masterCheckbox"></th>
                 <th style="padding: 10px;">Row</th>
                 <th style="padding: 10px;">Name (Col B)</th>
                 <th style="padding: 10px;">Placement (Col D)</th>
@@ -63,7 +105,7 @@
             </thead>
             <tbody id="queueTableBody">
               <tr>
-                <td colspan="5" style="text-align: center; padding: 20px; color: var(--text-muted);">Loading active queue...</td>
+                <td colspan="7" style="text-align: center; padding: 20px; color: var(--text-muted);">Loading active queue...</td>
               </tr>
             </tbody>
           </table>
@@ -74,13 +116,71 @@
   </div>
 </section>
 
+<style>
+  /* Color Badges for Action Dropdowns */
+  .action-select {
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-weight: 600;
+    border: 1px solid var(--border);
+  }
+  .action-Pending { background-color: #fef3c7; color: #92400e; }
+  .action-Check-in { background-color: #dbeafe; color: #1e40af; }
+  .action-In-Progress { background-color: #e0e7ff; color: #3730a3; }
+  .action-Successful { background-color: #dcfce7; color: #166534; }
+  .action-No-Show { background-color: #f3f4f6; color: #4b5563; }
+  .action-Rejected { background-color: #fee2e2; color: #991b1b; }
+
+  tr.dragging {
+    opacity: 0.5;
+    background: #e2e8f0;
+  }
+  .drag-handle {
+    cursor: grab;
+    color: var(--text-muted);
+    font-weight: bold;
+    user-select: none;
+  }
+</style>
+
 <script>
 document.addEventListener("DOMContentLoaded", function() {
   const clientSearchInput = document.getElementById("clientSearch");
   const clientList = document.getElementById("clientList");
   const queueTableBody = document.getElementById("queueTableBody");
+  const masterCheckbox = document.getElementById("masterCheckbox");
+  const statusAlert = document.getElementById("statusAlert");
+  let draggedRow = null;
 
-  // Autocomplete live search across Sheets A-Z
+  // Render Placement Dropdown Options
+  function getPlacementOptionsHTML(selectedValue) {
+    let html = `<option value="">--</option>`;
+    for (let p = 1; p <= 5; p++) {
+      const val = `P${p}`;
+      html += `<option value="${val}" ${selectedValue === val ? 'selected' : ''}>P${p}</option>`;
+    }
+    for (let i = 1; i <= 25; i++) {
+      const val = String(i);
+      html += `<option value="${val}" ${selectedValue === val ? 'selected' : ''}>${i}</option>`;
+    }
+    html += `<option value="Overflow" ${selectedValue === 'Overflow' ? 'selected' : ''}>Overflow</option>`;
+    return html;
+  }
+
+  // Render Action Dropdown Options
+  function getActionOptionsHTML(selectedValue) {
+    const actions = ["Pending", "Check-in", "In Progress", "Successful", "No-Show", "Rejected"];
+    return actions.map(act => 
+      `<option value="${act}" ${selectedValue === act ? 'selected' : ''}>${act}</option>`
+    ).join('');
+  }
+
+  // Helper for applying action CSS colors
+  function applyActionColorClass(selectElement) {
+    selectElement.className = 'action-select action-' + selectElement.value.replace(/\s+/g, '-');
+  }
+
+  // Autocomplete Live Search
   clientSearchInput.addEventListener("input", async function() {
     const query = this.value.trim();
     if (query.length < 2) return;
@@ -90,17 +190,17 @@ document.addEventListener("DOMContentLoaded", function() {
       const data = await res.json();
       
       clientList.innerHTML = "";
-      data.results.forEach(name => {
+      (data.results || []).forEach(name => {
         const option = document.createElement("option");
         option.value = name;
         clientList.appendChild(option);
       });
     } catch (err) {
-      console.error("Error fetching client names:", err);
+      console.error("Error fetching client search results:", err);
     }
   });
 
-  // Load Active Waiting Room Data
+  // Load Active Queue
   async function loadWaitingRoom() {
     try {
       const res = await fetch("/api/waiting-room");
@@ -108,34 +208,85 @@ document.addEventListener("DOMContentLoaded", function() {
       
       queueTableBody.innerHTML = "";
       if (!data.queue || data.queue.length === 0) {
-        queueTableBody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px;">No clients in waiting room.</td></tr>`;
+        queueTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px;">No clients in waiting room.</td></tr>`;
         return;
       }
 
       data.queue.forEach((row, idx) => {
         const tr = document.createElement("tr");
+        tr.draggable = true;
+        tr.dataset.rowIndex = row.row_index;
         tr.style.borderBottom = "1px solid var(--border)";
+
+        const currentAction = row.Action || 'Pending';
+        const actionClass = 'action-' + currentAction.replace(/\s+/g, '-');
+
         tr.innerHTML = `
-          <td style="padding: 10px;">${idx + 2}</td>
+          <td style="padding: 10px;" class="drag-handle">⋮⋮</td>
+          <td style="padding: 10px;"><input type="checkbox" class="row-checkbox" value="${row.row_index}"></td>
+          <td style="padding: 10px;" class="row-number">${idx + 2}</td>
           <td style="padding: 10px; font-weight: 600;">${row.Name || ''}</td>
           <td style="padding: 10px;">
-            <input type="text" id="placement_${idx}" value="${row.Placement || ''}" style="width: 80px; padding: 6px; border: 1px solid var(--border); border-radius: 4px;">
+            <select class="placement-select" style="padding: 6px; border-radius: 4px; border: 1px solid var(--border);">
+              ${getPlacementOptionsHTML(row.Placement)}
+            </select>
           </td>
           <td style="padding: 10px;">
-            <input type="text" id="action_${idx}" value="${row.Action || ''}" style="width: 140px; padding: 6px; border: 1px solid var(--border); border-radius: 4px;">
+            <select class="action-select ${actionClass}">
+              ${getActionOptionsHTML(currentAction)}
+            </select>
           </td>
           <td style="padding: 10px; text-align: right;">
-            <button onclick="updateRow(${row.row_index}, ${idx})" class="btn-sm" style="background: var(--primary-bright); color: white; border: none; cursor: pointer; padding: 6px 12px; border-radius: 4px;">Save</button>
+            <button onclick="saveRow(this)" class="btn-sm" style="background: var(--primary-bright); color: white; border: none; cursor: pointer; padding: 6px 12px; border-radius: 4px;">Save</button>
           </td>
         `;
+
+        // Action color listener
+        const actSelect = tr.querySelector('.action-select');
+        actSelect.addEventListener('change', () => applyActionColorClass(actSelect));
+
+        // Drag and Drop listeners
+        tr.addEventListener("dragstart", (e) => {
+          draggedRow = tr;
+          tr.classList.add("dragging");
+        });
+        tr.addEventListener("dragend", () => {
+          tr.classList.remove("dragging");
+          draggedRow = null;
+        });
+
         queueTableBody.appendChild(tr);
       });
     } catch (err) {
-      queueTableBody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px; color:red;">Failed to load queue.</td></tr>`;
+      queueTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:red;">Failed to load queue.</td></tr>`;
     }
   }
 
-  // Handle new client addition
+  // Drag and Drop reordering logic
+  queueTableBody.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    const afterElement = getDragAfterElement(queueTableBody, e.clientY);
+    if (afterElement == null) {
+      queueTableBody.appendChild(draggedRow);
+    } else {
+      queueTableBody.insertBefore(draggedRow, afterElement);
+    }
+  });
+
+  function getDragAfterElement(container, y) {
+    const draggableElements = [...container.querySelectorAll('tr:not(.dragging)')];
+    return draggableElements.reduce((closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = y - box.top - box.height / 2;
+      if (offset < 0 && offset > closest.offset) {
+        return { offset: offset, element: child };
+      } else {
+        return closest;
+      }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+  }
+
+  // Add client form submission
   document.getElementById("addClientForm").addEventListener("submit", async function(e) {
     e.preventDefault();
     const payload = {
@@ -157,22 +308,95 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   });
 
-  // Global scope function for saving single row updates
-  window.updateRow = async function(sheetRowIndex, domIdx) {
-    const placementVal = document.getElementById(`placement_${domIdx}`).value;
-    const actionVal = document.getElementById(`action_${domIdx}`).value;
+  // Single Row Save
+  window.saveRow = async function(btn) {
+    const tr = btn.closest("tr");
+    const rowIndex = tr.dataset.rowIndex;
+    const placement = tr.querySelector(".placement-select").value;
+    const action = tr.querySelector(".action-select").value;
 
-    await fetch("/api/waiting-room/update", {
+    const res = await fetch("/api/waiting-room/update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        row_index: sheetRowIndex,
-        placement: placementVal,
-        action: actionVal
-      })
+      body: JSON.stringify({ row_index: parseInt(rowIndex), placement, action })
     });
-    alert("Updated successfully!");
+
+    if (res.ok) {
+      showAlert("Row updated successfully!", "#dcfce7", "#166534");
+    } else {
+      showAlert("Failed to update row.", "#fee2e2", "#991b1b");
+    }
   };
+
+  // Selection Controls
+  masterCheckbox.addEventListener("change", function() {
+    const checkboxes = queueTableBody.querySelectorAll(".row-checkbox");
+    checkboxes.forEach(cb => cb.checked = masterCheckbox.checked);
+  });
+
+  document.getElementById("selectAllBtn").addEventListener("click", () => {
+    queueTableBody.querySelectorAll(".row-checkbox").forEach(cb => cb.checked = true);
+    masterCheckbox.checked = true;
+  });
+
+  document.getElementById("unselectAllBtn").addEventListener("click", () => {
+    queueTableBody.querySelectorAll(".row-checkbox").forEach(cb => cb.checked = false);
+    masterCheckbox.checked = false;
+  });
+
+  // Sequential Bulk Updates (Throttled to avoid Apps Script / Sheets API rate limits)
+  document.getElementById("applyBulkActionBtn").addEventListener("click", async () => {
+    const actionVal = document.getElementById("bulkActionSelect").value;
+    if (!actionVal) return alert("Select an action to apply.");
+
+    const selectedRows = [...queueTableBody.querySelectorAll(".row-checkbox:checked")].map(cb => {
+      const tr = cb.closest("tr");
+      return {
+        tr,
+        row_index: parseInt(tr.dataset.rowIndex),
+        placement: tr.querySelector(".placement-select").value,
+        action: actionVal
+      };
+    });
+
+    if (selectedRows.length === 0) return alert("No clients selected.");
+
+    showAlert(`Updating ${selectedRows.length} rows sequentially...`, "#dbeafe", "#1e40af");
+
+    for (let i = 0; i < selectedRows.length; i++) {
+      const item = selectedRows[i];
+      await fetch("/api/waiting-room/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(item)
+      });
+      // UI feedback & 150ms delay between updates to prevent API freezing
+      const actSelect = item.tr.querySelector(".action-select");
+      actSelect.value = actionVal;
+      applyActionColorClass(actSelect);
+      await new Promise(r => setTimeout(r, 150));
+    }
+
+    showAlert("All selected rows updated!", "#dcfce7", "#166534");
+  });
+
+  // Filter queue locally
+  document.getElementById("tableSearch").addEventListener("input", function() {
+    const term = this.value.toLowerCase();
+    const rows = queueTableBody.querySelectorAll("tr");
+    rows.forEach(tr => {
+      const text = tr.innerText.toLowerCase();
+      tr.style.display = text.includes(term) ? "" : "none";
+    });
+  });
+
+  function showAlert(msg, bg, color) {
+    statusAlert.innerText = msg;
+    statusAlert.style.backgroundColor = bg;
+    statusAlert.style.color = color;
+    statusAlert.style.display = "block";
+    setTimeout(() => { statusAlert.style.display = "none"; }, 3500);
+  }
 
   loadWaitingRoom();
 });
