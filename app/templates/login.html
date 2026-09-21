@@ -12,8 +12,8 @@
       The main website is public for all visitors. To access administrative controls and private tools, you must sign in with an authorized Google account.
     </p>
 
-    <!-- Google Login Button -->
-    <a href="{{ url_for('login') }}" class="btn-primary btn-block" style="display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 1rem;">
+    <!-- Google Login Button (Fixed endpoint) -->
+    <a href="{{ url_for('login_page') }}" class="btn-primary btn-block" style="display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 1rem;">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
         <path d="M12.24 10.285V13.4h6.887c-.58 2.766-3.03 4.814-6.887 4.814-4.14 0-7.5-3.36-7.5-7.5s3.36-7.5 7.5-7.5c1.86 0 3.55.68 4.86 1.8l2.38-2.38C17.42 1.03 14.97 0 12.24 0 5.48 0 0 5.48 0 12.24s5.48 12.24 12.24 12.24c7.05 0 11.73-4.96 11.73-11.94 0-.82-.08-1.42-.2-2.255H12.24z"/>
       </svg>
