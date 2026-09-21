@@ -120,7 +120,6 @@
               <tr>
                 <th style="width: 36px;">::</th>
                 <th style="width: 40px;"><input type="checkbox" id="masterCheckbox" class="checkbox-custom"></th>
-                <th style="width: 60px;">Row</th>
                 <th>Name</th>
                 <th>Placement</th>
                 <th>Action Status</th>
@@ -129,7 +128,7 @@
             </thead>
             <tbody id="queueTableBody">
               <tr>
-                <td colspan="7" class="table-loading">Loading active queue...</td>
+                <td colspan="6" class="table-loading">Loading active queue...</td>
               </tr>
             </tbody>
           </table>
@@ -433,7 +432,7 @@
     font-weight: 600;
   }
 
-  /* Tablet & Mobile Media Queries */
+  /* Responsive Tablet & Mobile Mode Transformations */
   @media (max-width: 992px) {
     .admin-layout {
       grid-template-columns: 1fr;
@@ -454,7 +453,7 @@
     }
   }
 
-  @media (max-width: 640px) {
+  @media (max-width: 768px) {
     .admin-wrapper {
       padding: 12px 8px;
     }
@@ -481,6 +480,43 @@
     }
     .search-group input {
       width: 100%;
+    }
+
+    /* Mobile Table-to-Card Responsive Layout */
+    .modern-table, .modern-table thead, .modern-table tbody, .modern-table th, .modern-table td, .modern-table tr {
+      display: block;
+    }
+    .modern-table thead {
+      display: none; /* Hide headers on mobile cards */
+    }
+    .modern-table tr {
+      margin-bottom: 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 12px;
+      background: #ffffff;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+    .modern-table td {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #f1f5f9;
+      text-align: right;
+    }
+    .modern-table td:last-child {
+      border-bottom: none;
+    }
+    .modern-table td::before {
+      content: attr(data-label);
+      font-weight: 600;
+      color: #64748b;
+      text-align: left;
+      font-size: 0.85rem;
+    }
+    .modern-table td.drag-handle {
+      display: none; /* Hide drag handle on mobile view */
     }
   }
 </style>
@@ -543,6 +579,51 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   });
 
+  // Sorting helper following Apps Script reindexPlacementQueue algorithm
+  function sortQueueData(queue) {
+    let pRows = [];
+    let standardRows = [];
+    let overflowRows = [];
+    let blankRows = [];
+
+    queue.forEach(item => {
+      const name = String(item.Name || '').trim();
+      const val = String(item.Placement || '').trim().toUpperCase();
+
+      if (!name) {
+        blankRows.push(item);
+      } else if (val.startsWith('P')) {
+        pRows.push(item);
+      } else if (val === 'OVERFLOW') {
+        overflowRows.push(item);
+      } else {
+        standardRows.push(item);
+      }
+    });
+
+    // 1. Sort P priorities at top
+    pRows.sort((a, b) => {
+      const getRank = (v) => parseInt(String(v || '').replace(/\D/g, ''), 10) || 99;
+      return getRank(a.Placement) - getRank(b.Placement);
+    });
+
+    // 2. Auto-promote OVERFLOW rows if capacity is under 25
+    if (standardRows.length < 25 && overflowRows.length > 0) {
+      const slotsAvailable = 25 - standardRows.length;
+      const toPromote = overflowRows.splice(0, slotsAvailable);
+      standardRows = standardRows.concat(toPromote);
+    }
+
+    // 3. Sequence placement numbers starting at 1
+    let numberedRows = standardRows.map((item, index) => {
+      item.Placement = String(index + 1);
+      return item;
+    });
+
+    // 4. Combine P -> Numbers -> Overflow -> Blanks
+    return [...pRows, ...numberedRows, ...overflowRows, ...blankRows];
+  }
+
   // Load Active Queue Data
   async function loadWaitingRoom() {
     try {
@@ -551,11 +632,14 @@ document.addEventListener("DOMContentLoaded", function() {
       
       queueTableBody.innerHTML = "";
       if (!data.queue || data.queue.length === 0) {
-        queueTableBody.innerHTML = `<tr><td colspan="7" class="table-loading">No clients currently in waiting room.</td></tr>`;
+        queueTableBody.innerHTML = `<tr><td colspan="6" class="table-loading">No clients currently in waiting room.</td></tr>`;
         return;
       }
 
-      data.queue.forEach((row, idx) => {
+      // Sort according to Apps Script sorting logic
+      const sortedQueue = sortQueueData(data.queue);
+
+      sortedQueue.forEach((row) => {
         const tr = document.createElement("tr");
         tr.draggable = true;
         tr.dataset.rowIndex = row.row_index;
@@ -564,21 +648,20 @@ document.addEventListener("DOMContentLoaded", function() {
         const actionClass = 'action-' + currentAction.replace(/\s+/g, '-');
 
         tr.innerHTML = `
-          <td class="drag-handle">⋮⋮</td>
-          <td><input type="checkbox" class="row-checkbox" value="${row.row_index}"></td>
-          <td style="font-weight: 600; color: #64748b;">${idx + 2}</td>
-          <td style="font-weight: 600; color: #0f172a;">${row.Name || ''}</td>
-          <td>
+          <td class="drag-handle" data-label="Reorder">⋮⋮</td>
+          <td data-label="Select"><input type="checkbox" class="row-checkbox" value="${row.row_index}"></td>
+          <td data-label="Name" style="font-weight: 600; color: #0f172a;">${row.Name || ''}</td>
+          <td data-label="Placement">
             <select class="form-control form-control-sm placement-select" style="min-width: 90px;">
               ${getPlacementOptionsHTML(row.Placement)}
             </select>
           </td>
-          <td>
+          <td data-label="Action Status">
             <select class="form-control form-control-sm action-select ${actionClass}" style="min-width: 125px;">
               ${getActionOptionsHTML(currentAction)}
             </select>
           </td>
-          <td style="text-align: right;">
+          <td data-label="Actions" style="text-align: right;">
             <button onclick="saveRow(this)" class="btn btn-primary btn-sm">Save</button>
           </td>
         `;
@@ -599,7 +682,7 @@ document.addEventListener("DOMContentLoaded", function() {
         queueTableBody.appendChild(tr);
       });
     } catch (err) {
-      queueTableBody.innerHTML = `<tr><td colspan="7" class="table-loading" style="color: #ef4444;">Failed to load queue.</td></tr>`;
+      queueTableBody.innerHTML = `<tr><td colspan="6" class="table-loading" style="color: #ef4444;">Failed to load queue.</td></tr>`;
     }
   }
 
@@ -665,6 +748,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
     if (res.ok) {
       showAlert("Row updated successfully!", "#dcfce7", "#166534");
+      loadWaitingRoom();
     } else {
       showAlert("Failed to update row.", "#fee2e2", "#991b1b");
     }
@@ -685,7 +769,7 @@ document.addEventListener("DOMContentLoaded", function() {
     masterCheckbox.checked = false;
   });
 
-  // Bulk Updates (Sequentially Throttled)
+  // Bulk Updates
   document.getElementById("applyBulkActionBtn").addEventListener("click", async () => {
     const actionVal = document.getElementById("bulkActionSelect").value;
     if (!actionVal) return alert("Please select an action to apply.");
@@ -718,6 +802,7 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     showAlert("All selected rows updated!", "#dcfce7", "#166534");
+    loadWaitingRoom();
   });
 
   // Bulk Delete
