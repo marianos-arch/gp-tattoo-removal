@@ -6,7 +6,7 @@
 <section class="admin-wrapper">
   <div class="admin-layout">
     
-    <!-- Responsive Navigation Sidebar / Header -->
+    <!-- Sidebar Navigation -->
     <aside class="admin-sidebar">
       <div class="sidebar-brand">
         <h3>Admin Nav</h3>
@@ -22,9 +22,8 @@
       </div>
     </aside>
 
-    <!-- Main Content Area -->
+    <!-- Main Content -->
     <main class="admin-main">
-      <!-- Header Bar -->
       <div class="main-header">
         <div>
           <h2>Waiting Room Queue & Intake</h2>
@@ -82,30 +81,11 @@
         </form>
       </section>
 
-      <!-- Toolbar: Bulk Controls & Search -->
+      <!-- Clean Search Toolbar -->
       <section class="toolbar-card">
-        <div class="bulk-actions-group">
-          <button id="selectAllBtn" class="btn btn-secondary btn-sm">Select All</button>
-          <button id="unselectAllBtn" class="btn btn-secondary btn-sm">Unselect All</button>
-          
-          <div class="bulk-select-wrapper">
-            <select id="bulkActionSelect" class="form-control form-control-sm">
-              <option value="">-- Bulk Set Action --</option>
-              <option value="Check-in">Check-in</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Successful">Successful</option>
-              <option value="No-Show">No-Show</option>
-              <option value="Pending">Pending</option>
-              <option value="Rejected">Rejected</option>
-            </select>
-            <button id="applyBulkActionBtn" class="btn btn-primary btn-sm">Apply Bulk</button>
-          </div>
-
-          <button id="deleteSelectedBtn" class="btn btn-danger btn-sm">Delete Selected</button>
-        </div>
-
         <div class="search-group">
-          <input type="text" id="tableSearch" placeholder="Filter queue..." class="form-control form-control-sm">
+          <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" id="tableSearch" placeholder="Filter queue by name, placement, or status..." class="form-control form-control-sm search-input">
         </div>
       </section>
 
@@ -139,8 +119,46 @@
   </div>
 </section>
 
+<!-- Floating Dynamic Batch Action Bar -->
+<div id="batchActionBar" class="batch-action-bar">
+  <div class="batch-action-content">
+    
+    <!-- Left: Selection Info -->
+    <div class="batch-selection-info">
+      <span id="selectedCountBadge" class="selection-count">0 Selected</span>
+      <button id="clearSelectionBtn" class="btn-text-action" title="Clear selection">✕ Clear</button>
+    </div>
+
+    <div class="batch-divider"></div>
+
+    <!-- Center: Operational Controls -->
+    <div class="batch-controls">
+      <select id="bulkActionSelect" class="form-control form-control-sm batch-select">
+        <option value="">-- Set Status --</option>
+        <option value="Check-in">Check-in</option>
+        <option value="In Progress">In Progress</option>
+        <option value="Successful">Successful</option>
+        <option value="No-Show">No-Show</option>
+        <option value="Pending">Pending</option>
+        <option value="Rejected">Rejected</option>
+      </select>
+      <button id="applyBulkActionBtn" class="btn btn-primary btn-sm">Apply</button>
+    </div>
+
+    <div class="batch-divider"></div>
+
+    <!-- Right: Destructive Danger Zone -->
+    <div class="batch-danger">
+      <button id="deleteSelectedBtn" class="btn btn-danger-soft btn-sm">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+        Delete Selected
+      </button>
+    </div>
+
+  </div>
+</div>
+
 <style>
-  /* Modern CSS Layout & Variables */
   .admin-wrapper {
     padding: 24px 16px;
     max-width: 1400px;
@@ -153,7 +171,6 @@
     align-items: start;
   }
 
-  /* Responsive Sidebar */
   .admin-sidebar {
     background: #ffffff;
     border: 1px solid #e2e8f0;
@@ -190,7 +207,6 @@
     color: #0f172a;
   }
 
-  /* Main Container */
   .admin-main {
     display: flex;
     flex-direction: column;
@@ -222,7 +238,6 @@
     border-radius: 20px;
   }
 
-  /* Form & Cards */
   .card {
     background: #ffffff;
     border: 1px solid #e2e8f0;
@@ -260,7 +275,6 @@
     letter-spacing: 0.03em;
   }
 
-  /* Standard Web Inputs & Dropdowns */
   .form-control {
     width: 100%;
     height: 42px;
@@ -283,7 +297,6 @@
     font-size: 0.85rem;
   }
 
-  /* Buttons UX Redesign */
   .btn {
     display: inline-flex;
     align-items: center;
@@ -302,7 +315,7 @@
   }
   .btn-sm {
     height: 36px;
-    padding: 0 12px;
+    padding: 0 14px;
     font-size: 0.85rem;
     border-radius: 6px;
   }
@@ -312,23 +325,6 @@
   }
   .btn-primary:hover {
     background: #1d4ed8;
-    box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
-  }
-  .btn-secondary {
-    background: #f1f5f9;
-    border-color: #cbd5e1;
-    color: #334155;
-  }
-  .btn-secondary:hover {
-    background: #e2e8f0;
-    color: #0f172a;
-  }
-  .btn-danger {
-    background: #ef4444;
-    color: #ffffff;
-  }
-  .btn-danger:hover {
-    background: #dc2626;
   }
   .btn-outline-danger {
     background: transparent;
@@ -338,32 +334,111 @@
   .btn-outline-danger:hover {
     background: #fee2e2;
   }
-  .btn-block {
-    width: 100%;
+  .btn-danger-soft {
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+  }
+  .btn-danger-soft:hover {
+    background: #dc2626;
+    color: #ffffff;
+    border-color: #dc2626;
   }
 
-  /* Toolbar Section */
+  /* Search Toolbar */
   .toolbar-card {
-    background: #f8fafc;
+    background: #ffffff;
     border: 1px solid #e2e8f0;
     border-radius: 10px;
-    padding: 12px 16px;
+    padding: 10px 14px;
+  }
+  .search-group {
+    position: relative;
+    width: 100%;
+  }
+  .search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+  }
+  .search-input {
+    padding-left: 36px;
+    border-color: #e2e8f0;
+  }
+
+  /* Dynamic Batch Floating Action Bar */
+  .batch-action-bar {
+    position: fixed;
+    bottom: -80px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    background: #0f172a;
+    color: #ffffff;
+    border-radius: 14px;
+    padding: 8px 12px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    opacity: 0;
+    visibility: hidden;
+  }
+  .batch-action-bar.visible {
+    bottom: 24px;
+    opacity: 1;
+    visibility: visible;
+  }
+  .batch-action-content {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    flex-wrap: wrap;
     gap: 12px;
   }
-  .bulk-actions-group {
+  .batch-selection-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-left: 6px;
+  }
+  .selection-count {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #38bdf8;
+    white-space: nowrap;
+  }
+  .btn-text-action {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+  }
+  .btn-text-action:hover {
+    color: #f1f5f9;
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .batch-divider {
+    width: 1px;
+    height: 24px;
+    background: #334155;
+  }
+  .batch-controls {
     display: flex;
     align-items: center;
     gap: 8px;
-    flex-wrap: wrap;
   }
-  .bulk-select-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+  .batch-select {
+    background: #1e293b;
+    border-color: #334155;
+    color: #ffffff;
+    width: 150px;
+  }
+  .batch-select:focus {
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
   }
 
   /* Table & Badges */
@@ -398,7 +473,6 @@
     color: #64748b;
   }
 
-  /* Color Badges for Action Dropdowns */
   .action-select {
     font-weight: 600;
     cursor: pointer;
@@ -410,20 +484,9 @@
   .action-No-Show { background-color: #f3f4f6; color: #4b5563; border-color: #e5e7eb; }
   .action-Rejected { background-color: #fee2e2; color: #991b1b; border-color: #fca5a5; }
 
-  /* Drag and Drop Styling */
-  tr.dragging {
-    opacity: 0.5;
-    background: #f1f5f9;
-  }
-  .drag-handle {
-    cursor: grab;
-    color: #94a3b8;
-    font-weight: bold;
-    user-select: none;
-    text-align: center;
-  }
+  tr.dragging { opacity: 0.5; background: #f1f5f9; }
+  .drag-handle { cursor: grab; color: #94a3b8; font-weight: bold; user-select: none; text-align: center; }
 
-  /* Status Alert Banner */
   .status-alert {
     display: none;
     padding: 12px 16px;
@@ -432,70 +495,31 @@
     font-weight: 600;
   }
 
-  /* Responsive Tablet & Mobile Mode Transformations */
   @media (max-width: 992px) {
-    .admin-layout {
-      grid-template-columns: 1fr;
-    }
-    .admin-sidebar {
-      flex-direction: row;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .sidebar-nav {
-      flex-direction: row;
-    }
-    .sidebar-footer {
-      width: auto;
-    }
-    .btn-block {
-      width: auto;
-    }
+    .admin-layout { grid-template-columns: 1fr; }
+    .admin-sidebar { flex-direction: row; justify-content: space-between; align-items: center; }
+    .sidebar-nav { flex-direction: row; }
   }
 
   @media (max-width: 768px) {
-    .admin-wrapper {
-      padding: 12px 8px;
+    .admin-wrapper { padding: 12px 8px; }
+    .batch-action-bar {
+      width: calc(100% - 24px);
+      border-radius: 10px;
     }
-    .card {
-      padding: 16px;
+    .batch-action-content {
+      flex-wrap: wrap;
+      justify-content: space-between;
     }
-    .form-grid {
-      flex-direction: column;
-      align-items: stretch;
-    }
-    .form-group, .form-group.flex-grow-2 {
-      width: 100%;
-    }
-    .bulk-actions-group {
-      width: 100%;
-      flex-direction: column;
-      align-items: stretch;
-    }
-    .bulk-select-wrapper {
-      width: 100%;
-    }
-    .search-group {
-      width: 100%;
-    }
-    .search-group input {
-      width: 100%;
-    }
-
-    /* Mobile Table-to-Card Responsive Layout */
-    .modern-table, .modern-table thead, .modern-table tbody, .modern-table th, .modern-table td, .modern-table tr {
-      display: block;
-    }
-    .modern-table thead {
-      display: none; /* Hide headers on mobile cards */
-    }
+    .batch-divider { display: none; }
+    .modern-table, .modern-table thead, .modern-table tbody, .modern-table th, .modern-table td, .modern-table tr { display: block; }
+    .modern-table thead { display: none; }
     .modern-table tr {
       margin-bottom: 12px;
       border: 1px solid #e2e8f0;
       border-radius: 10px;
       padding: 12px;
       background: #ffffff;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
     }
     .modern-table td {
       display: flex;
@@ -505,9 +529,7 @@
       border-bottom: 1px solid #f1f5f9;
       text-align: right;
     }
-    .modern-table td:last-child {
-      border-bottom: none;
-    }
+    .modern-table td:last-child { border-bottom: none; }
     .modern-table td::before {
       content: attr(data-label);
       font-weight: 600;
@@ -515,9 +537,7 @@
       text-align: left;
       font-size: 0.85rem;
     }
-    .modern-table td.drag-handle {
-      display: none; /* Hide drag handle on mobile view */
-    }
+    .modern-table td.drag-handle { display: none; }
   }
 </style>
 
@@ -528,9 +548,14 @@ document.addEventListener("DOMContentLoaded", function() {
   const queueTableBody = document.getElementById("queueTableBody");
   const masterCheckbox = document.getElementById("masterCheckbox");
   const statusAlert = document.getElementById("statusAlert");
+  
+  // Batch Bar DOM Nodes
+  const batchActionBar = document.getElementById("batchActionBar");
+  const selectedCountBadge = document.getElementById("selectedCountBadge");
+  const clearSelectionBtn = document.getElementById("clearSelectionBtn");
+  
   let draggedRow = null;
 
-  // Render Placement Options
   function getPlacementOptionsHTML(selectedValue) {
     const valStr = selectedValue !== null && selectedValue !== undefined ? String(selectedValue).trim() : "";
     let html = `<option value="">--</option>`;
@@ -546,7 +571,6 @@ document.addEventListener("DOMContentLoaded", function() {
     return html;
   }
 
-  // Render Action Options
   function getActionOptionsHTML(selectedValue) {
     const actions = ["Pending", "Check-in", "In Progress", "Successful", "No-Show", "Rejected"];
     return actions.map(act => 
@@ -554,77 +578,66 @@ document.addEventListener("DOMContentLoaded", function() {
     ).join('');
   }
 
-  // Apply action CSS badge colors
   function applyActionColorClass(selectElement) {
     selectElement.className = 'form-control form-control-sm action-select action-' + selectElement.value.replace(/\s+/g, '-');
   }
 
-  // Live Search Autocomplete
-  clientSearchInput.addEventListener("input", async function() {
-    const query = this.value.trim();
-    if (query.length < 2) return;
-
-    try {
-      const res = await fetch(`/api/clients/search?q=${encodeURIComponent(query)}`);
-      const data = await res.json();
-      
-      clientList.innerHTML = "";
-      (data.results || []).forEach(name => {
-        const option = document.createElement("option");
-        option.value = name;
-        clientList.appendChild(option);
-      });
-    } catch (err) {
-      console.error("Error searching clients:", err);
-    }
-  });
-
-  // Sorting helper following Apps Script reindexPlacementQueue algorithm
   function sortQueueData(queue) {
-    let pRows = [];
-    let standardRows = [];
-    let overflowRows = [];
-    let blankRows = [];
+    let pRows = [], standardRows = [], overflowRows = [], blankRows = [];
 
     queue.forEach(item => {
       const name = String(item.Name || '').trim();
       const val = String(item.Placement || '').trim().toUpperCase();
 
-      if (!name) {
-        blankRows.push(item);
-      } else if (val.startsWith('P')) {
-        pRows.push(item);
-      } else if (val === 'OVERFLOW') {
-        overflowRows.push(item);
-      } else {
-        standardRows.push(item);
-      }
+      if (!name) blankRows.push(item);
+      else if (val.startsWith('P')) pRows.push(item);
+      else if (val === 'OVERFLOW') overflowRows.push(item);
+      else standardRows.push(item);
     });
 
-    // 1. Sort P priorities at top
     pRows.sort((a, b) => {
       const getRank = (v) => parseInt(String(v || '').replace(/\D/g, ''), 10) || 99;
       return getRank(a.Placement) - getRank(b.Placement);
     });
 
-    // 2. Auto-promote OVERFLOW rows if capacity is under 25
     if (standardRows.length < 25 && overflowRows.length > 0) {
       const slotsAvailable = 25 - standardRows.length;
       const toPromote = overflowRows.splice(0, slotsAvailable);
       standardRows = standardRows.concat(toPromote);
     }
 
-    // 3. Sequence placement numbers starting at 1
     let numberedRows = standardRows.map((item, index) => {
       item.Placement = String(index + 1);
       return item;
     });
 
-    // 4. Combine P -> Numbers -> Overflow -> Blanks
     return [...pRows, ...numberedRows, ...overflowRows, ...blankRows];
   }
 
-  // Load Active Queue Data
+  // Live Batch Toolbar Visibility & Counter Logic
+  function updateBatchBarState() {
+    const checkedBoxes = queueTableBody.querySelectorAll(".row-checkbox:checked");
+    const count = checkedBoxes.length;
+
+    if (count > 0) {
+      selectedCountBadge.innerText = `${count} Selected`;
+      batchActionBar.classList.add("visible");
+    } else {
+      batchActionBar.classList.remove("visible");
+      masterCheckbox.checked = false;
+      masterCheckbox.indeterminate = false;
+    }
+
+    const totalBoxes = queueTableBody.querySelectorAll(".row-checkbox").length;
+    if (totalBoxes > 0 && count === totalBoxes) {
+      masterCheckbox.checked = true;
+      masterCheckbox.indeterminate = false;
+    } else if (count > 0 && count < totalBoxes) {
+      masterCheckbox.checked = false;
+      masterCheckbox.indeterminate = true;
+    }
+  }
+
   async function loadWaitingRoom() {
     try {
       const res = await fetch("/api/waiting-room");
@@ -633,10 +646,10 @@ document.addEventListener("DOMContentLoaded", function() {
       queueTableBody.innerHTML = "";
       if (!data.queue || data.queue.length === 0) {
         queueTableBody.innerHTML = `<tr><td colspan="6" class="table-loading">No clients currently in waiting room.</td></tr>`;
+        updateBatchBarState();
         return;
       }
 
-      // Sort according to Apps Script sorting logic
       const sortedQueue = sortQueueData(data.queue);
 
       sortedQueue.forEach((row) => {
@@ -669,6 +682,10 @@ document.addEventListener("DOMContentLoaded", function() {
         const actSelect = tr.querySelector('.action-select');
         actSelect.addEventListener('change', () => applyActionColorClass(actSelect));
 
+        // Row Checkbox Event
+        const rowCb = tr.querySelector('.row-checkbox');
+        rowCb.addEventListener('change', updateBatchBarState);
+
         // Drag events
         tr.addEventListener("dragstart", () => {
           draggedRow = tr;
@@ -681,98 +698,30 @@ document.addEventListener("DOMContentLoaded", function() {
 
         queueTableBody.appendChild(tr);
       });
+
+      updateBatchBarState();
+
     } catch (err) {
       queueTableBody.innerHTML = `<tr><td colspan="6" class="table-loading" style="color: #ef4444;">Failed to load queue.</td></tr>`;
     }
   }
 
-  // Drag and drop sorting logic
-  queueTableBody.addEventListener("dragover", (e) => {
-    e.preventDefault();
-    const afterElement = getDragAfterElement(queueTableBody, e.clientY);
-    if (afterElement == null) {
-      queueTableBody.appendChild(draggedRow);
-    } else {
-      queueTableBody.insertBefore(draggedRow, afterElement);
-    }
-  });
-
-  function getDragAfterElement(container, y) {
-    const draggableElements = [...container.querySelectorAll('tr:not(.dragging)')];
-    return draggableElements.reduce((closest, child) => {
-      const box = child.getBoundingClientRect();
-      const offset = y - box.top - box.height / 2;
-      if (offset < 0 && offset > closest.offset) {
-        return { offset: offset, element: child };
-      } else {
-        return closest;
-      }
-    }, { offset: Number.NEGATIVE_INFINITY }).element;
-  }
-
-  // Add Client Form Submission
-  document.getElementById("addClientForm").addEventListener("submit", async function(e) {
-    e.preventDefault();
-    const payload = {
-      name: document.getElementById("clientSearch").value,
-      placement: document.getElementById("placementInput").value,
-      action: document.getElementById("actionInput").value
-    };
-
-    const res = await fetch("/api/waiting-room/add", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
-    if (res.ok) {
-      document.getElementById("clientSearch").value = "";
-      document.getElementById("placementInput").value = "";
-      loadWaitingRoom();
-      showAlert("Client added successfully!", "#dcfce7", "#166534");
-    }
-  });
-
-  // Save Individual Row
-  window.saveRow = async function(btn) {
-    const tr = btn.closest("tr");
-    const rowIndex = tr.dataset.rowIndex;
-    const placement = tr.querySelector(".placement-select").value;
-    const action = tr.querySelector(".action-select").value;
-
-    const res = await fetch("/api/waiting-room/update", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ row_index: parseInt(rowIndex), placement, action })
-    });
-
-    if (res.ok) {
-      showAlert("Row updated successfully!", "#dcfce7", "#166534");
-      loadWaitingRoom();
-    } else {
-      showAlert("Failed to update row.", "#fee2e2", "#991b1b");
-    }
-  };
-
-  // Checkbox Controls
+  // Master Checkbox Logic
   masterCheckbox.addEventListener("change", function() {
     queueTableBody.querySelectorAll(".row-checkbox").forEach(cb => cb.checked = masterCheckbox.checked);
+    updateBatchBarState();
   });
 
-  document.getElementById("selectAllBtn").addEventListener("click", () => {
-    queueTableBody.querySelectorAll(".row-checkbox").forEach(cb => cb.checked = true);
-    masterCheckbox.checked = true;
-  });
-
-  document.getElementById("unselectAllBtn").addEventListener("click", () => {
+  // Clear Selection Button
+  clearSelectionBtn.addEventListener("click", () => {
     queueTableBody.querySelectorAll(".row-checkbox").forEach(cb => cb.checked = false);
-    masterCheckbox.checked = false;
+    updateBatchBarState();
   });
 
-  // Bulk Updates
+  // Bulk Status Update
   document.getElementById("applyBulkActionBtn").addEventListener("click", async () => {
     const actionVal = document.getElementById("bulkActionSelect").value;
-    if (!actionVal) return alert("Please select an action to apply.");
+    if (!actionVal) return alert("Please select a status action.");
 
     const selectedRows = [...queueTableBody.querySelectorAll(".row-checkbox:checked")].map(cb => {
       const tr = cb.closest("tr");
@@ -784,7 +733,7 @@ document.addEventListener("DOMContentLoaded", function() {
       };
     });
 
-    if (selectedRows.length === 0) return alert("No clients selected.");
+    if (selectedRows.length === 0) return;
 
     showAlert(`Updating ${selectedRows.length} rows...`, "#dbeafe", "#1e40af");
 
@@ -798,17 +747,17 @@ document.addEventListener("DOMContentLoaded", function() {
       const actSelect = item.tr.querySelector(".action-select");
       actSelect.value = actionVal;
       applyActionColorClass(actSelect);
-      await new Promise(r => setTimeout(r, 150));
+      await new Promise(r => setTimeout(r, 100));
     }
 
-    showAlert("All selected rows updated!", "#dcfce7", "#166534");
+    showAlert("Selected status updated!", "#dcfce7", "#166534");
     loadWaitingRoom();
   });
 
   // Bulk Delete
   document.getElementById("deleteSelectedBtn").addEventListener("click", async () => {
     const selectedCheckboxes = [...queueTableBody.querySelectorAll(".row-checkbox:checked")];
-    if (selectedCheckboxes.length === 0) return alert("No rows selected for deletion.");
+    if (selectedCheckboxes.length === 0) return;
 
     if (!confirm(`Are you sure you want to delete ${selectedCheckboxes.length} client(s)?`)) return;
 
@@ -824,7 +773,7 @@ document.addEventListener("DOMContentLoaded", function() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ row_index: rowIndex })
       });
-      await new Promise(r => setTimeout(r, 150));
+      await new Promise(r => setTimeout(r, 100));
     }
 
     loadWaitingRoom();
