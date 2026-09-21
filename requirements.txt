@@ -12,5 +12,7 @@ openpyxl
 jinja2
 httpx
 Authlib
+gspread
+google-auth
 
 python-multipart
