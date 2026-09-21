@@ -186,6 +186,25 @@ def delete_waiting_room_row():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/api/logs")
+def get_logs():
+    try:
+        gc = get_sheets_client()
+        spreadsheet_id = os.environ.get("SPREADSHEET_ID")
+        
+        if not spreadsheet_id:
+            return jsonify({"error": "SPREADSHEET_ID environment variable is missing"}), 500
+
+        spreadsheet = gc.open_by_key(spreadsheet_id)
+
+        sheet = spreadsheet.worksheet("Logs")
+        records = sheet.get_all_records()
+        
+        # Return formatted records reversed so newest entries appear on top
+        return jsonify({"logs": records[::-1]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route("/admin/login")
 def login_page():
     return render_template("login.html")
