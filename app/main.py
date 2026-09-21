@@ -56,7 +56,7 @@ def index():
 def get_placements():
     try:
         gc = get_sheets_client()
-        sheet = gc.open_by_key("YOUR_SPREADSHEET_ID").sheet1
+        sheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID")).sheet1
         
         records = sheet.get_all_records()
         return jsonify({"placements": records, "spots_left": len(records)})
