@@ -868,6 +868,7 @@ document.addEventListener("DOMContentLoaded", function() {
         tr.addEventListener("dragend", () => {
           tr.classList.remove("dragging");
           draggedRow = null;
+          await updatePlacementsAfterReorder();
         });
 
         // Mobile Touch Press-and-Hold Reordering
@@ -960,8 +961,45 @@ document.addEventListener("DOMContentLoaded", function() {
         tr.classList.remove('mobile-holding', 'dragging');
         isHolding = false;
         draggedRow = null;
+        await updatePlacementsAfterReorder();
       }
     });
+  }
+
+  async function updatePlacementsAfterReorder() {
+    const rows = queueTableBody.querySelectorAll("tr");
+    let updatedCount = 0;
+  
+    for (let i = 0; i < rows.length; i++) {
+      const tr = rows[i];
+      const newPlacement = String(i + 1); // 1-based index
+      const placementSelect = tr.querySelector(".placement-select");
+      const mobPlacementLabel = tr.querySelector(".mob-place-label");
+      const actionSelect = tr.querySelector(".action-select");
+      const rowIndex = tr.dataset.rowIndex;
+  
+      if (placementSelect && placementSelect.value !== newPlacement) {
+        // Update local DOM displays
+        placementSelect.value = newPlacement;
+        if (mobPlacementLabel) mobPlacementLabel.innerText = `${newPlacement}.`;
+  
+        // Sync to API
+        await fetch("/api/waiting-room/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            row_index: parseInt(rowIndex),
+            placement: newPlacement,
+            action: actionSelect.value
+          })
+        });
+        updatedCount++;
+      }
+    }
+  
+    if (updatedCount > 0) {
+      showAlert("Queue order saved!", "#dcfce7", "#166534");
+    }
   }
 
   function getDragAfterElement(container, y) {
