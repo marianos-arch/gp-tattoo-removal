@@ -119,28 +119,32 @@ def get_waiting_room():
         return jsonify({"error": str(e), "queue": []}), 500
 
 # Append new client to Waiting Room
-@app.route("/api/waiting-room/add", methods=["POST"])
+# Fetch Active Waiting Room Queue
+@app.route("/api/waiting-room")
 @admin_required
-def add_to_waiting_room():
+def get_waiting_room():
     try:
-        data = request.json
         gc = get_sheets_client()
         spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
         ws = spreadsheet.worksheet("Waiting Room")
         
-        # New row schema matching Waiting Room columns:
-        # [Submission Time, Name, Tattoo Session Date, Placement, Action]
-        new_row = [
-            "",  # Submission Time
-            data.get("name"),
-            "",  # Tattoo Session Date
-            data.get("placement"),
-            data.get("action")
-        ]
-        ws.append_row(new_row)
-        return jsonify({"status": "success"})
+        records = ws.get_all_records()
+        queue = []
+        for idx, row in enumerate(records, start=2):  # Row 1 is header row
+            # Helper to retrieve dict values flexibly ignoring surrounding spaces in header keys
+            row_clean = {str(k).strip(): v for k, v in row.items()}
+            
+            if row_clean.get("Name"):  # Check name
+                queue.append({
+                    "row_index": idx,
+                    "Name": row_clean.get("Name", ""),
+                    "Placement": str(row_clean.get("Placement", "")),  # Convert to string for JS comparison
+                    "Action": row_clean.get("Action", "")
+                })
+        return jsonify({"queue": queue})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": str(e), "queue": []}), 500
+        
 
 # Update existing Placement and Action values in Waiting Room
 @app.route("/api/waiting-room/update", methods=["POST"])
