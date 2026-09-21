@@ -151,6 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
       selectElement.className = 'form-control form-control-sm action-select action-' + selectElement.value.replace(/\s+/g, '-');
     }
 
+    // Preserve original sheet placement values
     function sortQueueData(queue) {
       let pRows = [], standardRows = [], overflowRows = [], blankRows = [];
 
@@ -169,18 +170,13 @@ document.addEventListener('DOMContentLoaded', () => {
         return getRank(a.Placement) - getRank(b.Placement);
       });
 
-      if (standardRows.length < 25 && overflowRows.length > 0) {
-        const slotsAvailable = 25 - standardRows.length;
-        const toPromote = overflowRows.splice(0, slotsAvailable);
-        standardRows = standardRows.concat(toPromote);
-      }
-
-      let numberedRows = standardRows.map((item, index) => {
-        item.Placement = String(index + 1);
-        return item;
+      standardRows.sort((a, b) => {
+        const numA = parseInt(a.Placement, 10) || 999;
+        const numB = parseInt(b.Placement, 10) || 999;
+        return numA - numB;
       });
 
-      return [...pRows, ...numberedRows, ...overflowRows, ...blankRows];
+      return [...pRows, ...standardRows, ...overflowRows, ...blankRows];
     }
 
     function updateBatchBarState() {
@@ -231,6 +227,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (res.ok) {
         showAlert("Updated!", "#dcfce7", "#166534");
+        // Reloads and re-sorts table instantly after Google Apps Script re-indexing completes
+        setTimeout(loadWaitingRoom, 800);
       } else {
         showAlert("Update failed", "#fee2e2", "#991b1b");
       }
@@ -470,6 +468,7 @@ document.addEventListener('DOMContentLoaded', () => {
       
       if (updatedCount > 0) {
         showAlert("Queue order saved!", "#dcfce7", "#166534");
+        setTimeout(loadWaitingRoom, 800);
       }
     }
 
@@ -531,7 +530,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         showAlert("Selected status updated!", "#dcfce7", "#166534");
-        loadWaitingRoom();
+        setTimeout(loadWaitingRoom, 800);
       });
     }
 
