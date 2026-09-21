@@ -56,8 +56,6 @@ def index():
 def get_placements():
     try:
         gc = get_sheets_client()
-        # Open sheet by key or title
-        # Replace 'YOUR_SPREADSHEET_ID' with the ID from your Google Sheet URL
         sheet = gc.open_by_key("YOUR_SPREADSHEET_ID").sheet1
         
         records = sheet.get_all_records()
