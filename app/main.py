@@ -1,17 +1,19 @@
 import os
+import json
 from functools import wraps
 from flask import Flask, render_template, jsonify, session, redirect, url_for
 from werkzeug.middleware.proxy_fix import ProxyFix
 from authlib.integrations.flask_client import OAuth
-import requests
+import gspread
+from google.oauth2.service_account import Credentials
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key-change-me")
 
 ADMIN_EMAILS = os.environ.get("ADMIN_EMAILS", "marianos@gardenpathways.org").split(",")
-APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzMluI9ccaJ2uPdrdmKCrbeDr3rwF94YGiSrodvLjHhbgaon5aWMkbC69I0egRUQIqS/exec"
 
+# Google OAuth Setup
 oauth = OAuth(app)
 google = oauth.register(
     name='google',
@@ -20,6 +22,20 @@ google = oauth.register(
     server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
     client_kwargs={'scope': 'openid email profile'}
 )
+
+# Helper function to get authenticated Google Sheets client
+def get_sheets_client():
+    raw_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
+    if not raw_json:
+        raise ValueError("GOOGLE_SERVICE_ACCOUNT_JSON environment variable is not set")
+    
+    info = json.loads(raw_json)
+    scopes = [
+        'https://www.googleapis.com/auth/spreadsheets',
+        'https://www.googleapis.com/auth/drive'
+    ]
+    creds = Credentials.from_service_account_info(info, scopes=scopes)
+    return gspread.authorize(creds)
 
 def admin_required(f):
     @wraps(f)
@@ -34,12 +50,18 @@ def admin_required(f):
 def index():
     return render_template("index.html")
 
+# Protected API endpoint - only logged-in admin users can fetch sheet data
 @app.route("/api/placements")
+@admin_required
 def get_placements():
     try:
-        res = requests.get(APPS_SCRIPT_URL, timeout=10)
-        res.raise_for_status()
-        return jsonify(res.json())
+        gc = get_sheets_client()
+        # Open sheet by key or title
+        # Replace 'YOUR_SPREADSHEET_ID' with the ID from your Google Sheet URL
+        sheet = gc.open_by_key("YOUR_SPREADSHEET_ID").sheet1
+        
+        records = sheet.get_all_records()
+        return jsonify({"placements": records, "spots_left": len(records)})
     except Exception as e:
         return jsonify({"error": str(e), "placements": [], "spots_left": 0}), 500
 
