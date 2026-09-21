@@ -3,38 +3,51 @@
 {% block title %}Admin Dashboard - Garden Pathways{% endblock %}
 
 {% block content %}
-<section class="container" style="padding: 40px 0;">
-  <div style="display: grid; grid-template-columns: 240px 1fr; gap: 24px; align-items: start;">
+<section class="admin-wrapper">
+  <div class="admin-layout">
     
-    <!-- Sidebar -->
-    <aside style="background: var(--white); padding: 20px; border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow);">
-      <h3 style="font-size: 1.1rem; color: var(--primary); margin-bottom: 16px;">Admin Navigation</h3>
-      <ul style="list-style: none; display: flex; flex-direction: column; gap: 10px; padding: 0;">
-        <li><a href="/admin" style="text-decoration: none; font-weight: 600; color: var(--primary-bright);">Dashboard</a></li>
-      </ul>
-      <hr class="divider" style="margin: 20px 0;">
-      <a href="/logout" class="btn-sm" style="display: block; text-align: center; background: #fee2e2; color: #991b1b; text-decoration: none; border-radius: 6px; padding: 8px;">Log Out</a>
+    <!-- Responsive Navigation Sidebar / Header -->
+    <aside class="admin-sidebar">
+      <div class="sidebar-brand">
+        <h3>Admin Nav</h3>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="/admin" class="nav-link active">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+          Dashboard
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <a href="/logout" class="btn btn-outline-danger btn-block">Log Out</a>
+      </div>
     </aside>
 
-    <!-- Main Shell Area -->
-    <main style="background: var(--white); padding: 32px; border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow);">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-        <h2>Waiting Room Queue & Intake</h2>
-        <span style="font-size: 0.85rem; color: var(--text-muted); background: var(--bg-light); padding: 6px 12px; border-radius: 20px;">
+    <!-- Main Content Area -->
+    <main class="admin-main">
+      <!-- Header Bar -->
+      <div class="main-header">
+        <div>
+          <h2>Waiting Room Queue & Intake</h2>
+          <p class="subheading">Manage live queue, placements, and client status</p>
+        </div>
+        <span class="user-badge">
           Signed in as <strong>{{ session['user']['email'] }}</strong>
         </span>
       </div>
 
-      <!-- Add Client Section with Autocomplete -->
-      <section style="background: var(--bg-light); padding: 20px; border-radius: 8px; margin-bottom: 24px; border: 1px solid var(--border);">
-        <h3 style="font-size: 1rem; margin-bottom: 12px;">Add Client to Waiting Room</h3>
-        <form id="addClientForm" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
-          <div style="flex: 2; min-width: 200px;">
-            <input type="text" id="clientSearch" name="client_name" list="clientList" placeholder="Start typing client name..." autocomplete="off" required style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
+      <!-- Add Client Section -->
+      <section class="card form-card">
+        <h3>Add Client to Waiting Room</h3>
+        <form id="addClientForm" class="form-grid">
+          <div class="form-group flex-grow-2">
+            <label for="clientSearch">Client Name</label>
+            <input type="text" id="clientSearch" name="client_name" list="clientList" placeholder="Start typing client name..." autocomplete="off" required class="form-control">
             <datalist id="clientList"></datalist>
           </div>
-          <div style="flex: 1; min-width: 130px;">
-            <select id="placementInput" name="placement" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
+
+          <div class="form-group">
+            <label for="placementInput">Placement</label>
+            <select id="placementInput" name="placement" class="form-control">
               <option value="">Placement...</option>
               <option value="P1">P1 (Priority 1)</option>
               <option value="P2">P2 (Priority 2)</option>
@@ -47,8 +60,10 @@
               <option value="Overflow">Overflow</option>
             </select>
           </div>
-          <div style="flex: 1; min-width: 130px;">
-            <select id="actionInput" name="action" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
+
+          <div class="form-group">
+            <label for="actionInput">Action Status</label>
+            <select id="actionInput" name="action" class="form-control">
               <option value="Pending">Pending</option>
               <option value="Check-in" selected>Check-in</option>
               <option value="In Progress">In Progress</option>
@@ -57,89 +72,416 @@
               <option value="Rejected">Rejected</option>
             </select>
           </div>
-          <button type="submit" class="btn" style="padding: 10px 20px; background: var(--primary-bright); color: white; border: none; border-radius: 6px; cursor: pointer;">Add Client</button>
+
+          <div class="form-group btn-container">
+            <button type="submit" class="btn btn-primary">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              Add Client
+            </button>
+          </div>
         </form>
       </section>
 
-      <!-- Search, Filter & Bulk Controls Toolbar -->
-      <section style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
-        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-          <button id="selectAllBtn" class="btn-sm" style="background: #e2e8f0; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">Select All</button>
-          <button id="unselectAllBtn" class="btn-sm" style="background: #e2e8f0; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">Unselect All</button>
+      <!-- Toolbar: Bulk Controls & Search -->
+      <section class="toolbar-card">
+        <div class="bulk-actions-group">
+          <button id="selectAllBtn" class="btn btn-secondary btn-sm">Select All</button>
+          <button id="unselectAllBtn" class="btn btn-secondary btn-sm">Unselect All</button>
           
-          <select id="bulkActionSelect" style="padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border);">
-            <option value="">-- Bulk Set Action --</option>
-            <option value="Check-in">Check-in</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Successful">Successful</option>
-            <option value="No-Show">No-Show</option>
-            <option value="Pending">Pending</option>
-            <option value="Rejected">Rejected</option>
-          </select>
-          <button id="applyBulkActionBtn" class="btn-sm" style="background: var(--primary-bright); color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">Apply Bulk</button>
-          <button id="deleteSelectedBtn" class="btn-sm" style="background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; padding: 6px 12px; border-radius: 4px; cursor: pointer;">Delete Selected</button>
+          <div class="bulk-select-wrapper">
+            <select id="bulkActionSelect" class="form-control form-control-sm">
+              <option value="">-- Bulk Set Action --</option>
+              <option value="Check-in">Check-in</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Successful">Successful</option>
+              <option value="No-Show">No-Show</option>
+              <option value="Pending">Pending</option>
+              <option value="Rejected">Rejected</option>
+            </select>
+            <button id="applyBulkActionBtn" class="btn btn-primary btn-sm">Apply Bulk</button>
+          </div>
+
+          <button id="deleteSelectedBtn" class="btn btn-danger btn-sm">Delete Selected</button>
         </div>
 
-        <div style="display: flex; gap: 8px;">
-          <input type="text" id="tableSearch" placeholder="Filter queue..." style="padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border); font-size: 0.85rem;">
+        <div class="search-group">
+          <input type="text" id="tableSearch" placeholder="Filter queue..." class="form-control form-control-sm">
         </div>
       </section>
 
-      <!-- Batch Status Alert -->
-      <div id="statusAlert" style="display: none; padding: 10px; margin-bottom: 16px; border-radius: 6px; font-size: 0.85rem; font-weight: 600;"></div>
+      <!-- Status Alert Banner -->
+      <div id="statusAlert" class="status-alert"></div>
 
-      <!-- Waiting Room Queue Table -->
-      <section>
-        <div style="overflow-x: auto;">
-          <table id="queueTable" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+      <!-- Queue Table Container -->
+      <section class="card table-card">
+        <div class="table-responsive">
+          <table id="queueTable" class="modern-table">
             <thead>
-              <tr style="border-bottom: 2px solid var(--border); background: var(--bg-light);">
-                <th style="padding: 10px; width: 30px;">::</th>
-                <th style="padding: 10px; width: 40px;"><input type="checkbox" id="masterCheckbox"></th>
-                <th style="padding: 10px;">Row</th>
-                <th style="padding: 10px;">Name (Col B)</th>
-                <th style="padding: 10px;">Placement (Col D)</th>
-                <th style="padding: 10px;">Action Item (Col E)</th>
-                <th style="padding: 10px; text-align: right;">Save</th>
+              <tr>
+                <th style="width: 36px;">::</th>
+                <th style="width: 40px;"><input type="checkbox" id="masterCheckbox" class="checkbox-custom"></th>
+                <th style="width: 60px;">Row</th>
+                <th>Name</th>
+                <th>Placement</th>
+                <th>Action Status</th>
+                <th style="text-align: right;">Actions</th>
               </tr>
             </thead>
             <tbody id="queueTableBody">
               <tr>
-                <td colspan="7" style="text-align: center; padding: 20px; color: var(--text-muted);">Loading active queue...</td>
+                <td colspan="7" class="table-loading">Loading active queue...</td>
               </tr>
             </tbody>
           </table>
         </div>
       </section>
-    </main>
 
+    </main>
   </div>
 </section>
 
 <style>
+  /* Modern CSS Layout & Variables */
+  .admin-wrapper {
+    padding: 24px 16px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  .admin-layout {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  /* Responsive Sidebar */
+  .admin-sidebar {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .sidebar-brand h3 {
+    font-size: 1.1rem;
+    color: #1e293b;
+    margin: 0;
+  }
+  .sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    color: #475569;
+    transition: all 0.2s ease;
+  }
+  .nav-link:hover, .nav-link.active {
+    background: #f1f5f9;
+    color: #0f172a;
+  }
+
+  /* Main Container */
+  .admin-main {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .main-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .main-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: #0f172a;
+  }
+  .subheading {
+    margin: 4px 0 0 0;
+    font-size: 0.875rem;
+    color: #64748b;
+  }
+  .user-badge {
+    font-size: 0.85rem;
+    color: #475569;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    padding: 6px 14px;
+    border-radius: 20px;
+  }
+
+  /* Form & Cards */
+  .card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .form-card h3 {
+    margin: 0 0 16px 0;
+    font-size: 1.05rem;
+    color: #1e293b;
+  }
+  .form-grid {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    min-width: 140px;
+  }
+  .form-group.flex-grow-2 {
+    flex: 2;
+    min-width: 220px;
+  }
+  .form-group label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  /* Standard Web Inputs & Dropdowns */
+  .form-control {
+    width: 100%;
+    height: 42px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    font-size: 0.9rem;
+    color: #0f172a;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .form-control:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  }
+  .form-control-sm {
+    height: 36px;
+    padding: 6px 10px;
+    font-size: 0.85rem;
+  }
+
+  /* Buttons UX Redesign */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 42px;
+    padding: 0 18px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+    text-decoration: none;
+  }
+  .btn-sm {
+    height: 36px;
+    padding: 0 12px;
+    font-size: 0.85rem;
+    border-radius: 6px;
+  }
+  .btn-primary {
+    background: #2563eb;
+    color: #ffffff;
+  }
+  .btn-primary:hover {
+    background: #1d4ed8;
+    box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+  }
+  .btn-secondary {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #334155;
+  }
+  .btn-secondary:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+  }
+  .btn-danger {
+    background: #ef4444;
+    color: #ffffff;
+  }
+  .btn-danger:hover {
+    background: #dc2626;
+  }
+  .btn-outline-danger {
+    background: transparent;
+    border-color: #fca5a5;
+    color: #b91c1c;
+  }
+  .btn-outline-danger:hover {
+    background: #fee2e2;
+  }
+  .btn-block {
+    width: 100%;
+  }
+
+  /* Toolbar Section */
+  .toolbar-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .bulk-actions-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .bulk-select-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Table & Badges */
+  .table-card {
+    padding: 0;
+    overflow: hidden;
+  }
+  .table-responsive {
+    overflow-x: auto;
+  }
+  .modern-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 0.9rem;
+  }
+  .modern-table th {
+    background: #f8fafc;
+    padding: 12px 16px;
+    font-weight: 600;
+    color: #475569;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .modern-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+  }
+  .table-loading {
+    text-align: center;
+    padding: 28px !important;
+    color: #64748b;
+  }
+
   /* Color Badges for Action Dropdowns */
   .action-select {
-    padding: 6px 10px;
-    border-radius: 6px;
     font-weight: 600;
-    border: 1px solid var(--border);
+    cursor: pointer;
   }
-  .action-Pending { background-color: #fef3c7; color: #92400e; }
-  .action-Check-in { background-color: #dbeafe; color: #1e40af; }
-  .action-In-Progress { background-color: #e0e7ff; color: #3730a3; }
-  .action-Successful { background-color: #dcfce7; color: #166534; }
-  .action-No-Show { background-color: #f3f4f6; color: #4b5563; }
-  .action-Rejected { background-color: #fee2e2; color: #991b1b; }
+  .action-Pending { background-color: #fef3c7; color: #92400e; border-color: #fde68a; }
+  .action-Check-in { background-color: #dbeafe; color: #1e40af; border-color: #bfdbfe; }
+  .action-In-Progress { background-color: #e0e7ff; color: #3730a3; border-color: #c7d2fe; }
+  .action-Successful { background-color: #dcfce7; color: #166534; border-color: #bbf7d0; }
+  .action-No-Show { background-color: #f3f4f6; color: #4b5563; border-color: #e5e7eb; }
+  .action-Rejected { background-color: #fee2e2; color: #991b1b; border-color: #fca5a5; }
 
+  /* Drag and Drop Styling */
   tr.dragging {
     opacity: 0.5;
-    background: #e2e8f0;
+    background: #f1f5f9;
   }
   .drag-handle {
     cursor: grab;
-    color: var(--text-muted);
+    color: #94a3b8;
     font-weight: bold;
     user-select: none;
+    text-align: center;
+  }
+
+  /* Status Alert Banner */
+  .status-alert {
+    display: none;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  /* Tablet & Mobile Media Queries */
+  @media (max-width: 992px) {
+    .admin-layout {
+      grid-template-columns: 1fr;
+    }
+    .admin-sidebar {
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .sidebar-nav {
+      flex-direction: row;
+    }
+    .sidebar-footer {
+      width: auto;
+    }
+    .btn-block {
+      width: auto;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .admin-wrapper {
+      padding: 12px 8px;
+    }
+    .card {
+      padding: 16px;
+    }
+    .form-grid {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .form-group, .form-group.flex-grow-2 {
+      width: 100%;
+    }
+    .bulk-actions-group {
+      width: 100%;
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .bulk-select-wrapper {
+      width: 100%;
+    }
+    .search-group {
+      width: 100%;
+    }
+    .search-group input {
+      width: 100%;
+    }
   }
 </style>
 
@@ -152,12 +494,9 @@ document.addEventListener("DOMContentLoaded", function() {
   const statusAlert = document.getElementById("statusAlert");
   let draggedRow = null;
 
-  // Render Placement Dropdown Options
-  // Render Placement Dropdown Options
+  // Render Placement Options
   function getPlacementOptionsHTML(selectedValue) {
-    // Coerce selectedValue to string and trim any extra space
     const valStr = selectedValue !== null && selectedValue !== undefined ? String(selectedValue).trim() : "";
-    
     let html = `<option value="">--</option>`;
     for (let p = 1; p <= 5; p++) {
       const val = `P${p}`;
@@ -171,7 +510,7 @@ document.addEventListener("DOMContentLoaded", function() {
     return html;
   }
 
-  // Render Action Dropdown Options
+  // Render Action Options
   function getActionOptionsHTML(selectedValue) {
     const actions = ["Pending", "Check-in", "In Progress", "Successful", "No-Show", "Rejected"];
     return actions.map(act => 
@@ -179,12 +518,12 @@ document.addEventListener("DOMContentLoaded", function() {
     ).join('');
   }
 
-  // Helper for applying action CSS colors
+  // Apply action CSS badge colors
   function applyActionColorClass(selectElement) {
-    selectElement.className = 'action-select action-' + selectElement.value.replace(/\s+/g, '-');
+    selectElement.className = 'form-control form-control-sm action-select action-' + selectElement.value.replace(/\s+/g, '-');
   }
 
-  // Autocomplete Live Search
+  // Live Search Autocomplete
   clientSearchInput.addEventListener("input", async function() {
     const query = this.value.trim();
     if (query.length < 2) return;
@@ -200,11 +539,11 @@ document.addEventListener("DOMContentLoaded", function() {
         clientList.appendChild(option);
       });
     } catch (err) {
-      console.error("Error fetching client search results:", err);
+      console.error("Error searching clients:", err);
     }
   });
 
-  // Load Active Queue
+  // Load Active Queue Data
   async function loadWaitingRoom() {
     try {
       const res = await fetch("/api/waiting-room");
@@ -212,7 +551,7 @@ document.addEventListener("DOMContentLoaded", function() {
       
       queueTableBody.innerHTML = "";
       if (!data.queue || data.queue.length === 0) {
-        queueTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px;">No clients in waiting room.</td></tr>`;
+        queueTableBody.innerHTML = `<tr><td colspan="7" class="table-loading">No clients currently in waiting room.</td></tr>`;
         return;
       }
 
@@ -220,37 +559,35 @@ document.addEventListener("DOMContentLoaded", function() {
         const tr = document.createElement("tr");
         tr.draggable = true;
         tr.dataset.rowIndex = row.row_index;
-        tr.style.borderBottom = "1px solid var(--border)";
 
         const currentAction = row.Action || 'Pending';
         const actionClass = 'action-' + currentAction.replace(/\s+/g, '-');
 
         tr.innerHTML = `
-          <td style="padding: 10px;" class="drag-handle">⋮⋮</td>
-          <td style="padding: 10px;"><input type="checkbox" class="row-checkbox" value="${row.row_index}"></td>
-          <td style="padding: 10px;" class="row-number">${idx + 2}</td>
-          <td style="padding: 10px; font-weight: 600;">${row.Name || ''}</td>
-          <td style="padding: 10px;">
-            <select class="placement-select" style="padding: 6px; border-radius: 4px; border: 1px solid var(--border);">
+          <td class="drag-handle">⋮⋮</td>
+          <td><input type="checkbox" class="row-checkbox" value="${row.row_index}"></td>
+          <td style="font-weight: 600; color: #64748b;">${idx + 2}</td>
+          <td style="font-weight: 600; color: #0f172a;">${row.Name || ''}</td>
+          <td>
+            <select class="form-control form-control-sm placement-select" style="min-width: 90px;">
               ${getPlacementOptionsHTML(row.Placement)}
             </select>
           </td>
-          <td style="padding: 10px;">
-            <select class="action-select ${actionClass}">
+          <td>
+            <select class="form-control form-control-sm action-select ${actionClass}" style="min-width: 125px;">
               ${getActionOptionsHTML(currentAction)}
             </select>
           </td>
-          <td style="padding: 10px; text-align: right;">
-            <button onclick="saveRow(this)" class="btn-sm" style="background: var(--primary-bright); color: white; border: none; cursor: pointer; padding: 6px 12px; border-radius: 4px;">Save</button>
+          <td style="text-align: right;">
+            <button onclick="saveRow(this)" class="btn btn-primary btn-sm">Save</button>
           </td>
         `;
 
-        // Action color listener
         const actSelect = tr.querySelector('.action-select');
         actSelect.addEventListener('change', () => applyActionColorClass(actSelect));
 
-        // Drag and Drop listeners
-        tr.addEventListener("dragstart", (e) => {
+        // Drag events
+        tr.addEventListener("dragstart", () => {
           draggedRow = tr;
           tr.classList.add("dragging");
         });
@@ -262,11 +599,11 @@ document.addEventListener("DOMContentLoaded", function() {
         queueTableBody.appendChild(tr);
       });
     } catch (err) {
-      queueTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:red;">Failed to load queue.</td></tr>`;
+      queueTableBody.innerHTML = `<tr><td colspan="7" class="table-loading" style="color: #ef4444;">Failed to load queue.</td></tr>`;
     }
   }
 
-  // Drag and Drop reordering logic
+  // Drag and drop sorting logic
   queueTableBody.addEventListener("dragover", (e) => {
     e.preventDefault();
     const afterElement = getDragAfterElement(queueTableBody, e.clientY);
@@ -290,7 +627,7 @@ document.addEventListener("DOMContentLoaded", function() {
     }, { offset: Number.NEGATIVE_INFINITY }).element;
   }
 
-  // Add client form submission
+  // Add Client Form Submission
   document.getElementById("addClientForm").addEventListener("submit", async function(e) {
     e.preventDefault();
     const payload = {
@@ -309,10 +646,11 @@ document.addEventListener("DOMContentLoaded", function() {
       document.getElementById("clientSearch").value = "";
       document.getElementById("placementInput").value = "";
       loadWaitingRoom();
+      showAlert("Client added successfully!", "#dcfce7", "#166534");
     }
   });
 
-  // Single Row Save
+  // Save Individual Row
   window.saveRow = async function(btn) {
     const tr = btn.closest("tr");
     const rowIndex = tr.dataset.rowIndex;
@@ -332,10 +670,9 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   };
 
-  // Selection Controls
+  // Checkbox Controls
   masterCheckbox.addEventListener("change", function() {
-    const checkboxes = queueTableBody.querySelectorAll(".row-checkbox");
-    checkboxes.forEach(cb => cb.checked = masterCheckbox.checked);
+    queueTableBody.querySelectorAll(".row-checkbox").forEach(cb => cb.checked = masterCheckbox.checked);
   });
 
   document.getElementById("selectAllBtn").addEventListener("click", () => {
@@ -348,10 +685,10 @@ document.addEventListener("DOMContentLoaded", function() {
     masterCheckbox.checked = false;
   });
 
-  // Sequential Bulk Updates (Throttled to avoid Apps Script / Sheets API rate limits)
+  // Bulk Updates (Sequentially Throttled)
   document.getElementById("applyBulkActionBtn").addEventListener("click", async () => {
     const actionVal = document.getElementById("bulkActionSelect").value;
-    if (!actionVal) return alert("Select an action to apply.");
+    if (!actionVal) return alert("Please select an action to apply.");
 
     const selectedRows = [...queueTableBody.querySelectorAll(".row-checkbox:checked")].map(cb => {
       const tr = cb.closest("tr");
@@ -365,7 +702,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
     if (selectedRows.length === 0) return alert("No clients selected.");
 
-    showAlert(`Updating ${selectedRows.length} rows sequentially...`, "#dbeafe", "#1e40af");
+    showAlert(`Updating ${selectedRows.length} rows...`, "#dbeafe", "#1e40af");
 
     for (let i = 0; i < selectedRows.length; i++) {
       const item = selectedRows[i];
@@ -374,7 +711,6 @@ document.addEventListener("DOMContentLoaded", function() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(item)
       });
-      // UI feedback & 150ms delay between updates to prevent API freezing
       const actSelect = item.tr.querySelector(".action-select");
       actSelect.value = actionVal;
       applyActionColorClass(actSelect);
@@ -384,7 +720,33 @@ document.addEventListener("DOMContentLoaded", function() {
     showAlert("All selected rows updated!", "#dcfce7", "#166534");
   });
 
-  // Filter queue locally
+  // Bulk Delete
+  document.getElementById("deleteSelectedBtn").addEventListener("click", async () => {
+    const selectedCheckboxes = [...queueTableBody.querySelectorAll(".row-checkbox:checked")];
+    if (selectedCheckboxes.length === 0) return alert("No rows selected for deletion.");
+
+    if (!confirm(`Are you sure you want to delete ${selectedCheckboxes.length} client(s)?`)) return;
+
+    showAlert(`Deleting ${selectedCheckboxes.length} row(s)...`, "#fee2e2", "#991b1b");
+
+    for (let i = 0; i < selectedCheckboxes.length; i++) {
+      const cb = selectedCheckboxes[i];
+      const tr = cb.closest("tr");
+      const rowIndex = parseInt(tr.dataset.rowIndex);
+
+      await fetch("/api/waiting-room/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ row_index: rowIndex })
+      });
+      await new Promise(r => setTimeout(r, 150));
+    }
+
+    loadWaitingRoom();
+    showAlert("Selected row(s) deleted successfully!", "#dcfce7", "#166534");
+  });
+
+  // Local Table Search Filter
   document.getElementById("tableSearch").addEventListener("input", function() {
     const term = this.value.toLowerCase();
     const rows = queueTableBody.querySelectorAll("tr");
