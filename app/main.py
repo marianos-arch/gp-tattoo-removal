@@ -187,6 +187,7 @@ def delete_waiting_room_row():
         return jsonify({"error": str(e)}), 500
 
 @app.route("/api/logs")
+@admin_required
 def get_logs():
     try:
         gc = get_sheets_client()
@@ -196,14 +197,39 @@ def get_logs():
             return jsonify({"error": "SPREADSHEET_ID environment variable is missing"}), 500
 
         spreadsheet = gc.open_by_key(spreadsheet_id)
-
-        sheet = spreadsheet.worksheet("Logs")
-        records = sheet.get_all_records()
+        ws = spreadsheet.worksheet("Logs")
         
-        # Return formatted records reversed so newest entries appear on top
-        return jsonify({"logs": records[::-1]})
+        # Get all values from row 3 down
+        rows = ws.get_all_values()
+        if len(rows) < 3:
+            return jsonify({"logs": []})
+        
+        # Row 3 (index 2) contains header columns: 
+        # Col A: Submission Time, Col B: Name, Col C: Tattoo Session Date, 
+        # Col D: Status, Col E: Reviewed By, Col F: Reviewed At
+        raw_headers = rows[2]
+        headers = [str(h).strip() for h in raw_headers]
+        data_rows = rows[3:]  # Rows starting from Row 4 (actual log records)
+
+        logs = []
+        for row in reversed(data_rows):
+            # Skip completely empty rows
+            if not any(row):
+                continue
+
+            # Map array values safely to header names
+            record = {}
+            for i, h in enumerate(headers):
+                if h:  # Only add non-empty headers
+                    record[h] = row[i] if i < len(row) else ""
+            
+            logs.append(record)
+        
+        return jsonify({"logs": logs})
+
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": str(e), "logs": []}), 500
+    
 
 @app.route("/admin/login")
 def login_page():
