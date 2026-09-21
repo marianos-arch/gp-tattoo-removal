@@ -153,17 +153,21 @@ document.addEventListener("DOMContentLoaded", function() {
   let draggedRow = null;
 
   // Render Placement Dropdown Options
+  // Render Placement Dropdown Options
   function getPlacementOptionsHTML(selectedValue) {
+    // Coerce selectedValue to string and trim any extra space
+    const valStr = selectedValue !== null && selectedValue !== undefined ? String(selectedValue).trim() : "";
+    
     let html = `<option value="">--</option>`;
     for (let p = 1; p <= 5; p++) {
       const val = `P${p}`;
-      html += `<option value="${val}" ${selectedValue === val ? 'selected' : ''}>P${p}</option>`;
+      html += `<option value="${val}" ${valStr === val ? 'selected' : ''}>P${p}</option>`;
     }
     for (let i = 1; i <= 25; i++) {
       const val = String(i);
-      html += `<option value="${val}" ${selectedValue === val ? 'selected' : ''}>${i}</option>`;
+      html += `<option value="${val}" ${valStr === val ? 'selected' : ''}>${i}</option>`;
     }
-    html += `<option value="Overflow" ${selectedValue === 'Overflow' ? 'selected' : ''}>Overflow</option>`;
+    html += `<option value="Overflow" ${valStr === 'Overflow' ? 'selected' : ''}>Overflow</option>`;
     return html;
   }
 
