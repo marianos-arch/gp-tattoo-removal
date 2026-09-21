@@ -103,12 +103,11 @@
                 <th>Name</th>
                 <th>Placement</th>
                 <th>Action Status</th>
-                <th style="text-align: right;">Actions</th>
               </tr>
             </thead>
             <tbody id="queueTableBody">
               <tr>
-                <td colspan="6" class="table-loading">Loading active queue...</td>
+                <td colspan="5" class="table-loading">Loading active queue...</td>
               </tr>
             </tbody>
           </table>
@@ -345,7 +344,6 @@
     border-color: #dc2626;
   }
 
-  /* Search Toolbar */
   .toolbar-card {
     background: #ffffff;
     border: 1px solid #e2e8f0;
@@ -436,12 +434,7 @@
     color: #ffffff;
     width: 150px;
   }
-  .batch-select:focus {
-    border-color: #38bdf8;
-    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
-  }
 
-  /* Table & Badges */
   .table-card {
     padding: 0;
     overflow: hidden;
@@ -484,8 +477,12 @@
   .action-No-Show { background-color: #f3f4f6; color: #4b5563; border-color: #e5e7eb; }
   .action-Rejected { background-color: #fee2e2; color: #991b1b; border-color: #fca5a5; }
 
-  tr.dragging { opacity: 0.5; background: #f1f5f9; }
+  tr.dragging { opacity: 0.4; background: #e2e8f0; }
   .drag-handle { cursor: grab; color: #94a3b8; font-weight: bold; user-select: none; text-align: center; }
+
+  /* Mobile Consolidated Card Shell */
+  .mobile-card-summary { display: none; }
+  .mobile-edit-drawer { display: none; }
 
   .status-alert {
     display: none;
@@ -501,43 +498,98 @@
     .sidebar-nav { flex-direction: row; }
   }
 
+  /* Consolidated Mobile Layout */
   @media (max-width: 768px) {
     .admin-wrapper { padding: 12px 8px; }
-    .batch-action-bar {
-      width: calc(100% - 24px);
-      border-radius: 10px;
-    }
-    .batch-action-content {
-      flex-wrap: wrap;
-      justify-content: space-between;
-    }
+    .batch-action-bar { width: calc(100% - 24px); border-radius: 10px; }
+    .batch-action-content { flex-wrap: wrap; justify-content: space-between; }
     .batch-divider { display: none; }
+
     .modern-table, .modern-table thead, .modern-table tbody, .modern-table th, .modern-table td, .modern-table tr { display: block; }
     .modern-table thead { display: none; }
+    
+    /* Simplified Single-Line Mobile Card */
     .modern-table tr {
-      margin-bottom: 12px;
+      margin-bottom: 8px;
       border: 1px solid #e2e8f0;
       border-radius: 10px;
-      padding: 12px;
+      padding: 0;
       background: #ffffff;
+      touch-action: pan-y;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
     }
+    
+    .modern-table tr.mobile-holding {
+      transform: scale(0.98);
+      box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+      border-color: #2563eb;
+    }
+
     .modern-table td {
+      display: none; /* Hide desktop table cells on mobile */
+    }
+
+    /* Consolidated Summary Line View */
+    .mobile-card-summary {
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      padding: 8px 0;
-      border-bottom: 1px solid #f1f5f9;
-      text-align: right;
+      justify-content: space-between;
+      padding: 12px 14px;
+      cursor: pointer;
+      user-select: none;
     }
-    .modern-table td:last-child { border-bottom: none; }
-    .modern-table td::before {
-      content: attr(data-label);
+
+    .mobile-card-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.92rem;
       font-weight: 600;
-      color: #64748b;
-      text-align: left;
-      font-size: 0.85rem;
+      color: #0f172a;
+      flex: 1;
     }
-    .modern-table td.drag-handle { display: none; }
+
+    .mobile-placement-tag {
+      color: #2563eb;
+      font-weight: 700;
+    }
+
+    .mobile-status-tag {
+      font-size: 0.78rem;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-weight: 600;
+      margin-left: 4px;
+    }
+
+    /* Expandable Inline Drawer */
+    .mobile-edit-drawer {
+      display: none;
+      padding: 12px 14px;
+      background: #f8fafc;
+      border-top: 1px dashed #cbd5e1;
+      border-bottom-left-radius: 10px;
+      border-bottom-right-radius: 10px;
+      gap: 10px;
+      flex-direction: column;
+    }
+
+    .mobile-edit-drawer.open {
+      display: flex;
+    }
+
+    .mobile-drawer-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .mobile-drawer-grid label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+    }
   }
 </style>
 
@@ -549,7 +601,6 @@ document.addEventListener("DOMContentLoaded", function() {
   const masterCheckbox = document.getElementById("masterCheckbox");
   const statusAlert = document.getElementById("statusAlert");
   
-  // Batch Bar DOM Nodes
   const batchActionBar = document.getElementById("batchActionBar");
   const selectedCountBadge = document.getElementById("selectedCountBadge");
   const clearSelectionBtn = document.getElementById("clearSelectionBtn");
@@ -614,7 +665,6 @@ document.addEventListener("DOMContentLoaded", function() {
     return [...pRows, ...numberedRows, ...overflowRows, ...blankRows];
   }
 
-  // Live Batch Toolbar Visibility & Counter Logic
   function updateBatchBarState() {
     const checkedBoxes = queueTableBody.querySelectorAll(".row-checkbox:checked");
     const count = checkedBoxes.length;
@@ -638,6 +688,34 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   }
 
+  // Instant Single Auto-Save Helper
+  async function autoSaveSingleParticipant(tr) {
+    const rowIndex = tr.dataset.rowIndex;
+    const placement = tr.querySelector(".placement-select").value;
+    const action = tr.querySelector(".action-select").value;
+
+    // Update Mobile Inline Label Displays
+    const mobPlacement = tr.querySelector(".mob-place-label");
+    const mobAction = tr.querySelector(".mob-status-label");
+    if (mobPlacement) mobPlacement.innerText = `${placement || '-'}.`;
+    if (mobAction) {
+      mobAction.innerText = action;
+      mobAction.className = 'mobile-status-tag action-' + action.replace(/\s+/g, '-');
+    }
+
+    const res = await fetch("/api/waiting-room/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ row_index: parseInt(rowIndex), placement, action })
+    });
+
+    if (res.ok) {
+      showAlert("Updated!", "#dcfce7", "#166534");
+    } else {
+      showAlert("Update failed", "#fee2e2", "#991b1b");
+    }
+  }
+
   async function loadWaitingRoom() {
     try {
       const res = await fetch("/api/waiting-room");
@@ -645,7 +723,7 @@ document.addEventListener("DOMContentLoaded", function() {
       
       queueTableBody.innerHTML = "";
       if (!data.queue || data.queue.length === 0) {
-        queueTableBody.innerHTML = `<tr><td colspan="6" class="table-loading">No clients currently in waiting room.</td></tr>`;
+        queueTableBody.innerHTML = `<tr><td colspan="5" class="table-loading">No clients currently in waiting room.</td></tr>`;
         updateBatchBarState();
         return;
       }
@@ -659,34 +737,94 @@ document.addEventListener("DOMContentLoaded", function() {
 
         const currentAction = row.Action || 'Pending';
         const actionClass = 'action-' + currentAction.replace(/\s+/g, '-');
+        const currentPlacement = row.Placement || '';
 
         tr.innerHTML = `
-          <td class="drag-handle" data-label="Reorder">⋮⋮</td>
-          <td data-label="Select"><input type="checkbox" class="row-checkbox" value="${row.row_index}"></td>
-          <td data-label="Name" style="font-weight: 600; color: #0f172a;">${row.Name || ''}</td>
-          <td data-label="Placement">
+          <!-- Desktop Table Cells -->
+          <td class="drag-handle">⋮⋮</td>
+          <td><input type="checkbox" class="row-checkbox" value="${row.row_index}"></td>
+          <td style="font-weight: 600; color: #0f172a;">${row.Name || ''}</td>
+          <td>
             <select class="form-control form-control-sm placement-select" style="min-width: 90px;">
-              ${getPlacementOptionsHTML(row.Placement)}
+              ${getPlacementOptionsHTML(currentPlacement)}
             </select>
           </td>
-          <td data-label="Action Status">
+          <td>
             <select class="form-control form-control-sm action-select ${actionClass}" style="min-width: 125px;">
               ${getActionOptionsHTML(currentAction)}
             </select>
           </td>
-          <td data-label="Actions" style="text-align: right;">
-            <button onclick="saveRow(this)" class="btn btn-primary btn-sm">Save</button>
-          </td>
+
+          <!-- Consolidated Mobile Summary Row -->
+          <div class="mobile-card-summary">
+            <div class="mobile-card-info" onclick="toggleMobileDrawer(this)">
+              <span class="mobile-placement-tag mob-place-label">${currentPlacement ? currentPlacement + '.' : '-.'}</span>
+              <span>${row.Name || ''}</span>
+              <span class="mobile-status-tag mob-status-label ${actionClass}">${currentAction}</span>
+            </div>
+            <input type="checkbox" class="row-checkbox mobile-cb" value="${row.row_index}">
+          </div>
+
+          <!-- Mobile Inline Edit Drawer -->
+          <div class="mobile-edit-drawer">
+            <div class="mobile-drawer-grid">
+              <div>
+                <label>Placement</label>
+                <select class="form-control form-control-sm placement-select mob-place-sel">
+                  ${getPlacementOptionsHTML(currentPlacement)}
+                </select>
+              </div>
+              <div>
+                <label>Status</label>
+                <select class="form-control form-control-sm action-select mob-act-sel ${actionClass}">
+                  ${getActionOptionsHTML(currentAction)}
+                </select>
+              </div>
+            </div>
+          </div>
         `;
 
-        const actSelect = tr.querySelector('.action-select');
-        actSelect.addEventListener('change', () => applyActionColorClass(actSelect));
+        // Sync Desktop & Mobile Dropdowns + Instant Auto-Save on Change
+        const desktopPlace = tr.querySelector('td .placement-select');
+        const mobilePlace = tr.querySelector('.mob-place-sel');
+        const desktopAct = tr.querySelector('td .action-select');
+        const mobileAct = tr.querySelector('.mob-act-sel');
 
-        // Row Checkbox Event
-        const rowCb = tr.querySelector('.row-checkbox');
-        rowCb.addEventListener('change', updateBatchBarState);
+        desktopPlace.addEventListener('change', () => {
+          mobilePlace.value = desktopPlace.value;
+          autoSaveSingleParticipant(tr);
+        });
+        mobilePlace.addEventListener('change', () => {
+          desktopPlace.value = mobilePlace.value;
+          autoSaveSingleParticipant(tr);
+        });
 
-        // Drag events
+        desktopAct.addEventListener('change', () => {
+          mobileAct.value = desktopAct.value;
+          applyActionColorClass(desktopAct);
+          applyActionColorClass(mobileAct);
+          autoSaveSingleParticipant(tr);
+        });
+        mobileAct.addEventListener('change', () => {
+          desktopAct.value = mobileAct.value;
+          applyActionColorClass(desktopAct);
+          applyActionColorClass(mobileAct);
+          autoSaveSingleParticipant(tr);
+        });
+
+        // Sync Checkboxes
+        const desktopCb = tr.querySelector('td .row-checkbox');
+        const mobileCb = tr.querySelector('.mobile-cb');
+        desktopCb.addEventListener('change', () => {
+          mobileCb.checked = desktopCb.checked;
+          updateBatchBarState();
+        });
+        mobileCb.addEventListener('change', () => {
+          desktopCb.checked = mobileCb.checked;
+          updateBatchBarState();
+        });
+
+        // Desktop Drag and Drop
         tr.addEventListener("dragstart", () => {
           draggedRow = tr;
           tr.classList.add("dragging");
@@ -696,14 +834,79 @@ document.addEventListener("DOMContentLoaded", function() {
           draggedRow = null;
         });
 
+        // Mobile Touch Press-and-Hold Reordering
+        attachMobilePressAndHold(tr);
+
         queueTableBody.appendChild(tr);
       });
 
       updateBatchBarState();
 
     } catch (err) {
-      queueTableBody.innerHTML = `<tr><td colspan="6" class="table-loading" style="color: #ef4444;">Failed to load queue.</td></tr>`;
+      queueTableBody.innerHTML = `<tr><td colspan="5" class="table-loading" style="color: #ef4444;">Failed to load queue.</td></tr>`;
     }
+  }
+
+  // Toggle Inline Mobile Drawer
+  window.toggleMobileDrawer = function(infoEl) {
+    const tr = infoEl.closest('tr');
+    const drawer = tr.querySelector('.mobile-edit-drawer');
+    drawer.classList.toggle('open');
+  };
+
+  // Mobile Touch Hold-to-Drag Implementation
+  function attachMobilePressAndHold(tr) {
+    let holdTimer = null;
+    let isHolding = false;
+
+    tr.addEventListener('touchstart', (e) => {
+      // Ignore if tapping form controls or checkboxes
+      if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT' || e.target.tagName === 'LABEL') return;
+
+      holdTimer = setTimeout(() => {
+        isHolding = true;
+        draggedRow = tr;
+        tr.classList.add('mobile-holding', 'dragging');
+        if (navigator.vibrate) navigator.vibrate(50); // Haptic feedback
+      }, 400); // 400ms hold threshold
+    }, { passive: true });
+
+    tr.addEventListener('touchmove', (e) => {
+      if (!isHolding) {
+        clearTimeout(holdTimer);
+        return;
+      }
+      e.preventDefault(); // Prevent scrolling while holding & dragging
+      const touchLocation = e.touches[0];
+      const afterElement = getDragAfterElement(queueTableBody, touchLocation.clientY);
+      if (afterElement == null) {
+        queueTableBody.appendChild(draggedRow);
+      } else {
+        queueTableBody.insertBefore(draggedRow, afterElement);
+      }
+    }, { passive: false });
+
+    tr.addEventListener('touchend', () => {
+      clearTimeout(holdTimer);
+      if (isHolding) {
+        tr.classList.remove('mobile-holding', 'dragging');
+        isHolding = false;
+        draggedRow = null;
+      }
+    });
+  }
+
+  function getDragAfterElement(container, y) {
+    const draggableElements = [...container.querySelectorAll('tr:not(.dragging)')];
+    return draggableElements.reduce((closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = y - box.top - box.height / 2;
+      if (offset < 0 && offset > closest.offset) {
+        return { offset: offset, element: child };
+      } else {
+        return closest;
+      }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
   }
 
   // Master Checkbox Logic
@@ -712,7 +915,6 @@ document.addEventListener("DOMContentLoaded", function() {
     updateBatchBarState();
   });
 
-  // Clear Selection Button
   clearSelectionBtn.addEventListener("click", () => {
     queueTableBody.querySelectorAll(".row-checkbox").forEach(cb => cb.checked = false);
     updateBatchBarState();
@@ -723,7 +925,7 @@ document.addEventListener("DOMContentLoaded", function() {
     const actionVal = document.getElementById("bulkActionSelect").value;
     if (!actionVal) return alert("Please select a status action.");
 
-    const selectedRows = [...queueTableBody.querySelectorAll(".row-checkbox:checked")].map(cb => {
+    const selectedRows = [...queueTableBody.querySelectorAll("td .row-checkbox:checked")].map(cb => {
       const tr = cb.closest("tr");
       return {
         tr,
@@ -744,9 +946,6 @@ document.addEventListener("DOMContentLoaded", function() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(item)
       });
-      const actSelect = item.tr.querySelector(".action-select");
-      actSelect.value = actionVal;
-      applyActionColorClass(actSelect);
       await new Promise(r => setTimeout(r, 100));
     }
 
@@ -756,7 +955,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
   // Bulk Delete
   document.getElementById("deleteSelectedBtn").addEventListener("click", async () => {
-    const selectedCheckboxes = [...queueTableBody.querySelectorAll(".row-checkbox:checked")];
+    const selectedCheckboxes = [...queueTableBody.querySelectorAll("td .row-checkbox:checked")];
     if (selectedCheckboxes.length === 0) return;
 
     if (!confirm(`Are you sure you want to delete ${selectedCheckboxes.length} client(s)?`)) return;
@@ -780,7 +979,7 @@ document.addEventListener("DOMContentLoaded", function() {
     showAlert("Selected row(s) deleted successfully!", "#dcfce7", "#166534");
   });
 
-  // Local Table Search Filter
+  // Local Search Filter
   document.getElementById("tableSearch").addEventListener("input", function() {
     const term = this.value.toLowerCase();
     const rows = queueTableBody.querySelectorAll("tr");
