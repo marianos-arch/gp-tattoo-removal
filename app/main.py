@@ -1,7 +1,8 @@
 import os
 import json
+import string
 from functools import wraps
-from flask import Flask, render_template, jsonify, session, redirect, url_for
+from flask import Flask, render_template, jsonify, session, redirect, url_for, request
 from werkzeug.middleware.proxy_fix import ProxyFix
 from authlib.integrations.flask_client import OAuth
 import gspread
@@ -50,7 +51,7 @@ def admin_required(f):
 def index():
     return render_template("index.html")
 
-# Protected API endpoint - only logged-in admin users can fetch sheet data
+# Protected API endpoint - existing placements check
 @app.route("/api/placements")
 @admin_required
 def get_placements():
@@ -62,6 +63,104 @@ def get_placements():
         return jsonify({"placements": records, "spots_left": len(records)})
     except Exception as e:
         return jsonify({"error": str(e), "placements": [], "spots_left": 0}), 500
+
+# Dynamic search across Sheets A-Z for autocomplete
+@app.route("/api/clients/search")
+@admin_required
+def search_clients():
+    query = request.args.get("q", "").strip().lower()
+    if not query or len(query) < 2:
+        return jsonify({"results": []})
+
+    try:
+        gc = get_sheets_client()
+        spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
+        
+        matches = []
+        # Target the specific initial tab if available, otherwise fallback to all letters
+        first_letter = query[0].upper()
+        letters_to_check = [first_letter] if first_letter in string.ascii_uppercase else string.ascii_uppercase
+
+        for letter in letters_to_check:
+            try:
+                ws = spreadsheet.worksheet(letter)
+                names = ws.col_values(1)[1:]  # Read Column A (skipping header)
+                for name in names:
+                    if query in name.lower():
+                        matches.append(name)
+            except Exception:
+                continue
+
+        return jsonify({"results": matches[:15]})
+    except Exception as e:
+        return jsonify({"error": str(e), "results": []}), 500
+
+# Fetch Active Waiting Room Queue
+@app.route("/api/waiting-room")
+@admin_required
+def get_waiting_room():
+    try:
+        gc = get_sheets_client()
+        spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
+        ws = spreadsheet.worksheet("Waiting Room")
+        
+        records = ws.get_all_records()
+        queue = []
+        for idx, row in enumerate(records, start=2):  # Row 1 is header row
+            if row.get("Name "):  # Skip empty rows
+                queue.append({
+                    "row_index": idx,
+                    "Name": row.get("Name "),
+                    "Placement": row.get("Placement"),
+                    "Action": row.get("Action")
+                })
+        return jsonify({"queue": queue})
+    except Exception as e:
+        return jsonify({"error": str(e), "queue": []}), 500
+
+# Append new client to Waiting Room
+@app.route("/api/waiting-room/add", methods=["POST"])
+@admin_required
+def add_to_waiting_room():
+    try:
+        data = request.json
+        gc = get_sheets_client()
+        spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
+        ws = spreadsheet.worksheet("Waiting Room")
+        
+        # New row schema matching Waiting Room columns:
+        # [Submission Time, Name, Tattoo Session Date, Placement, Action]
+        new_row = [
+            "",  # Submission Time
+            data.get("name"),
+            "",  # Tattoo Session Date
+            data.get("placement"),
+            data.get("action")
+        ]
+        ws.append_row(new_row)
+        return jsonify({"status": "success"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Update existing Placement and Action values in Waiting Room
+@app.route("/api/waiting-room/update", methods=["POST"])
+@admin_required
+def update_waiting_room():
+    try:
+        data = request.json
+        row_idx = data.get("row_index")
+        
+        gc = get_sheets_client()
+        spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
+        ws = spreadsheet.worksheet("Waiting Room")
+        
+        # Column 4 = Placement, Column 5 = Action
+        ws.update_cell(row_idx, 4, data.get("placement"))
+        ws.update_cell(row_idx, 5, data.get("action"))
+        
+        return jsonify({"status": "success"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/admin/login")
 def login_page():
