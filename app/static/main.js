@@ -114,6 +114,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const queueTableBody = document.getElementById("queueTableBody");
 
   if (queueTableBody) {
+    const clientSearchInput = document.getElementById("clientSearch");
+    const clientList = document.getElementById("clientList");
     const logsTableBody = document.getElementById("logsTableBody");
     const masterCheckbox = document.getElementById("masterCheckbox");
     const statusAlert = document.getElementById("statusAlert");
@@ -149,7 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
       selectElement.className = 'form-control form-control-sm action-select action-' + selectElement.value.replace(/\s+/g, '-');
     }
 
-    // Preserve exact spreadsheet placement numerical values
+    // Preserve original sheet placement values
     function sortQueueData(queue) {
       let pRows = [], standardRows = [], overflowRows = [], blankRows = [];
 
@@ -225,6 +227,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (res.ok) {
         showAlert("Updated!", "#dcfce7", "#166534");
+        // Reloads and re-sorts table instantly after Google Apps Script re-indexing completes
+        setTimeout(loadWaitingRoom, 800);
       } else {
         showAlert("Update failed", "#fee2e2", "#991b1b");
       }
@@ -433,7 +437,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Only triggered when a drag-and-drop action is explicitly performed
     async function updatePlacementsAfterReorder() {
       const rows = queueTableBody.querySelectorAll("tr");
       let updatedCount = 0;
@@ -465,6 +468,7 @@ document.addEventListener('DOMContentLoaded', () => {
       
       if (updatedCount > 0) {
         showAlert("Queue order saved!", "#dcfce7", "#166534");
+        setTimeout(loadWaitingRoom, 800);
       }
     }
 
@@ -526,6 +530,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         showAlert("Selected status updated!", "#dcfce7", "#166534");
+        setTimeout(loadWaitingRoom, 800);
       });
     }
 
