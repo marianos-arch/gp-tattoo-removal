@@ -199,36 +199,41 @@ def get_logs():
         spreadsheet = gc.open_by_key(spreadsheet_id)
         ws = spreadsheet.worksheet("Logs")
         
-        # Get all values from row 3 down
+        # Get all raw rows from the sheet
         rows = ws.get_all_values()
+        
+        # We need at least 3 rows (Row 3 is the first data row)
         if len(rows) < 3:
             return jsonify({"logs": []})
-        
-        # Row 3 (index 2) contains header columns: 
-        # Col A: Submission Time, Col B: Name, Col C: Tattoo Session Date, 
-        # Col D: Status, Col E: Reviewed By, Col F: Reviewed At
-        raw_headers = rows[2]
-        headers = [str(h).strip() for h in raw_headers]
-        data_rows = rows[3:]  # Rows starting from Row 4 (actual log records)
+
+        # Data rows start at Row 3 (0-based index 2)
+        data_rows = rows[2:]
 
         logs = []
         for row in reversed(data_rows):
-            # Skip completely empty rows
+            # Skip empty rows
             if not any(row):
                 continue
 
-            # Map array values safely to header names
-            record = {}
-            for i, h in enumerate(headers):
-                if h:  # Only add non-empty headers
-                    record[h] = row[i] if i < len(row) else ""
-            
-            logs.append(record)
+            # Directly map Column A through Column F based on index position
+            record = {
+                "Submission Time": row[0].strip() if len(row) > 0 else "",
+                "Name": row[1].strip() if len(row) > 1 else "",
+                "Tattoo Session Date": row[2].strip() if len(row) > 2 else "",
+                "Status": row[3].strip() if len(row) > 3 else "",
+                "Reviewed By": row[4].strip() if len(row) > 4 else "",
+                "Reviewed At": row[5].strip() if len(row) > 5 else ""
+            }
+
+            # Only append rows that have content
+            if record["Name"] or record["Submission Time"]:
+                logs.append(record)
         
         return jsonify({"logs": logs})
 
     except Exception as e:
         return jsonify({"error": str(e), "logs": []}), 500
+        
     
 
 @app.route("/admin/login")
