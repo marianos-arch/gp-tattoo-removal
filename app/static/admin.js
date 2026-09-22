@@ -65,18 +65,31 @@ document.addEventListener('DOMContentLoaded', () => {
     clientList.appendChild(fragment);
   }
 
-  // Dynamic live search requiring at least 3 characters
+  // Debounce helper to prevent flooding the backend on every keypress
+  function debounce(func, delay = 300) {
+    let timer;
+    return function (...args) {
+      clearTimeout(timer);
+      timer = setTimeout(() => func.apply(this, args), delay);
+    };
+  }
+
+  // Dynamic live search with 3-character threshold + debouncing
   if (clientSearchInput) {
-    clientSearchInput.addEventListener("input", async function() {
+    clientSearchInput.addEventListener("input", debounce(async function() {
       const searchTerm = this.value.trim();
 
-      if (searchTerm.length < 3) {
-        return; // Don't call backend until 3 characters are typed
-      }
+      // Don't call backend until at least 3 characters are typed
+      if (searchTerm.length < 3) return;
 
       try {
         const res = await fetch(`/api/clients/search?q=${encodeURIComponent(searchTerm)}`);
-        if (!res.ok) return;
+        
+        // Silently exit if server returns non-200 (500, 404, etc)
+        if (!res.ok) {
+          console.warn(`Client search returned status ${res.status}`);
+          return;
+        }
 
         const data = await res.json();
         const rawClients = Array.isArray(data) ? data : (data.results || data.clients || []);
@@ -91,9 +104,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         updateDatalist(results);
       } catch (err) {
-        console.error("Dynamic client search error:", err);
+        console.error("Dynamic client search network error:", err);
       }
-    });
+    }, 300));
   }
 
   // Handle 'Add Client' Form Submission
