@@ -40,9 +40,8 @@ def get_sheets_client():
     creds = Credentials.from_service_account_info(info, scopes=scopes)
     return gspread.authorize(creds)
 
-
-def trigger_apps_script(row_index, action=None, placement=None):
-    """Sends payload to Apps Script doPost endpoint to trigger handleEdit automation."""
+def trigger_apps_script(row_index, name=None, action=None, placement=None):
+    """Sends payload including Client Name to Apps Script to preserve identity across reindexes."""
     url = os.environ.get("APPS_SCRIPT_URL")
     if not url:
         print("Warning: APPS_SCRIPT_URL environment variable is not set.")
@@ -50,15 +49,14 @@ def trigger_apps_script(row_index, action=None, placement=None):
 
     payload = {
         "sheetName": "Waiting Room",
-        "row_index": int(row_index),
+        "row_index": int(row_index) if row_index else None,
+        "name": str(name).strip() if name else None,
         "action": action,
         "placement": str(placement) if placement is not None else None
     }
 
     try:
-        # allow_redirects=True is required because Apps Script redirects webhooks
         response = requests.post(url, json=payload, timeout=15, allow_redirects=True)
-        
         if response.ok:
             res_data = response.json()
             if res_data.get("status") == "success":
@@ -84,13 +82,11 @@ def admin_required(f):
 def index():
     return render_template("index.html")
 
-# Protected API endpoint - existing placements check
 @app.route("/api/placements")
 @admin_required
 def get_placements():
     try:
         gc = get_sheets_client()
-        # Explicitly open "Waiting Room" tab instead of sheet1
         spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
         sheet = spreadsheet.worksheet("Waiting Room")
         
@@ -99,7 +95,6 @@ def get_placements():
     except Exception as e:
         return jsonify({"error": str(e), "placements": [], "spots_left": 0}), 500
 
-# Dynamic search across Sheets A-Z for autocomplete
 @app.route("/api/clients/search")
 @admin_required
 def search_clients():
@@ -150,7 +145,6 @@ def search_clients():
         print(f"Search API Error: {e}")
         return jsonify({"error": str(e), "results": []}), 500
 
-# Fetch Active Waiting Room Queue
 @app.route("/api/waiting-room", methods=["GET"])
 @admin_required
 def get_waiting_room():
@@ -164,7 +158,6 @@ def get_waiting_room():
             return jsonify({"queue": []})
 
         queue = []
-        # Header is row 1 (index 0). Data starts on row 2 (index 1).
         for idx, row in enumerate(all_rows[1:], start=2):
             if not row or not any(row):
                 continue
@@ -198,7 +191,6 @@ def get_waiting_room():
     except Exception as e:
         return jsonify({"error": str(e), "queue": []}), 500
 
-# Append new client to Waiting Room
 @app.route("/api/waiting-room/add", methods=["POST"])
 @admin_required
 def add_to_waiting_room():
@@ -220,7 +212,6 @@ def add_to_waiting_room():
         spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
         ws = spreadsheet.worksheet("Waiting Room")
 
-        # Row Payload: A=Timestamp, B=Name, C=Session Date, D=Placement, E=Action, F=Routing Status
         row_payload = [
             timestamp_str,
             name,
@@ -237,37 +228,50 @@ def add_to_waiting_room():
         print(f"Error adding to waiting room: {e}")
         return jsonify({"error": str(e)}), 500
 
-# Update existing Placement and Action values in Waiting Room
 @app.route("/api/waiting-room/update", methods=["POST"])
 @admin_required
 def update_waiting_room():
     try:
         data = request.json or {}
         row_idx = data.get("row_index")
+        name = data.get("name")
         action = data.get("action")
         placement = data.get("placement")
         
-        if not row_idx:
-            return jsonify({"error": "Row index is required"}), 400
+        if not row_idx and not name:
+            return jsonify({"error": "Row index or name is required"}), 400
 
-        row_idx = int(row_idx)
-
-        # 1. Attempt to update via Apps Script endpoint
-        success = trigger_apps_script(row_idx, action=action, placement=placement)
+        # 1. Attempt update via Apps Script passing Name + Row Index
+        success = trigger_apps_script(row_idx, name=name, action=action, placement=placement)
 
         # 2. Fallback direct write to Google Sheet if Apps Script fails or is unconfigured
-        # main.py inside /api/waiting-room/update
-        # 2. Fallback direct write if Apps Script fails or is unconfigured
         if not success:
             gc = get_sheets_client()
             spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
             ws = spreadsheet.worksheet("Waiting Room")
             
-            # Write Action FIRST so row movements don't alter target row
+            target_row = None
+            
+            # Find client row dynamically by Name in Column B (Column 2)
+            if name:
+                names_col = ws.col_values(2)
+                name_clean = str(name).strip().lower()
+                for i, col_val in enumerate(names_col[1:], start=2):
+                    if str(col_val).strip().lower() == name_clean:
+                        target_row = i
+                        break
+
+            if not target_row and row_idx:
+                target_row = int(row_idx)
+
+            if not target_row:
+                return jsonify({"error": "Client row could not be located"}), 404
+            
+            # Write Action FIRST, then Placement
             if action is not None:
-                ws.update_cell(row_idx, 5, str(action))
+                ws.update_cell(target_row, 5, str(action))
             if placement is not None:
-                ws.update_cell(row_idx, 4, str(placement))
+                ws.update_cell(target_row, 4, str(placement))
                 
             return jsonify({"status": "success", "note": "Updated via gspread direct write"})
 
@@ -276,22 +280,34 @@ def update_waiting_room():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# Delete row from Waiting Room
 @app.route("/api/waiting-room/delete", methods=["POST"])
 @admin_required
 def delete_waiting_room_row():
     try:
         data = request.json or {}
         row_idx = data.get("row_index")
-        
-        if not row_idx:
-            return jsonify({"error": "Row index is required"}), 400
+        name = data.get("name")
 
         gc = get_sheets_client()
         spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
         ws = spreadsheet.worksheet("Waiting Room")
-        
-        ws.delete_rows(int(row_idx))
+
+        target_row = None
+        if name:
+            names_col = ws.col_values(2)
+            name_clean = str(name).strip().lower()
+            for i, col_val in enumerate(names_col[1:], start=2):
+                if str(col_val).strip().lower() == name_clean:
+                    target_row = i
+                    break
+
+        if not target_row and row_idx:
+            target_row = int(row_idx)
+
+        if not target_row:
+            return jsonify({"error": "Client row not found for deletion"}), 404
+
+        ws.delete_rows(target_row)
         return jsonify({"status": "success"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
