@@ -91,52 +91,53 @@ def get_placements():
 @admin_required
 def search_clients():
     query = request.args.get("q", "").strip().lower()
-    if not query or len(query) < 1:
+    if not query:
+        return jsonify({"results": []})
+
+    query_parts = re.findall(r'\w+', query)
+    if not query_parts:
         return jsonify({"results": []})
 
     try:
         gc = get_sheets_client()
         spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
-        
+
+        # 1. Fetch Column A for tabs A-Z in ONE batch call instead of 26 separate HTTP requests
+        ranges = [f"'{letter}'!A3:A" for letter in string.ascii_uppercase]
+        batch_response = spreadsheet.values_batch_get(ranges)
+        value_ranges = batch_response.get("valueRanges", [])
+
         matches = []
-        # Split search query into individual words (e.g., "john smith" -> ["john", "smith"])
-        query_parts = re.findall(r'\w+', query)
+        seen = set()
 
-        if not query_parts:
-            return jsonify({"results": []})
-
-        # To cover both "First Last" and "Last, First", we check all letter tabs A-Z
-        for letter in string.ascii_uppercase:
-            try:
-                ws = spreadsheet.worksheet(letter)
-                col_a_values = ws.col_values(1)
+        # 2. Iterate through returned data
+        for vr in value_ranges:
+            rows = vr.get("values", [])
+            for row in rows:
+                if not row:
+                    continue
                 
-                # Column A data starts on Row 3 (Index 2 in 0-indexed Python list)
-                if len(col_a_values) >= 3:
-                    names = col_a_values[2:]  # Row 3 onwards
-                    for raw_name in names:
-                        name = raw_name.strip()
-                        if not name:
-                            continue
-                        
-                        name_lower = name.lower()
-                        # Match if EVERY word in the search query exists in the client's name
-                        if all(part in name_lower for part in query_parts):
-                            matches.append(name)
-                            
-                        if len(matches) >= 15:
-                            break
-            except gspread.exceptions.WorksheetNotFound:
-                continue
-            except Exception as sheet_err:
-                print(f"Error reading sheet '{letter}': {sheet_err}")
-                continue
+                raw_name = row[0].strip()
+                if not raw_name or raw_name.lower() in seen:
+                    continue
+
+                name_lower = raw_name.lower()
+                
+                # Check if all terms in the query exist in the name (handles "John Smith" and "Smith, John")
+                if all(part in name_lower for part in query_parts):
+                    matches.append(raw_name)
+                    seen.add(name_lower)
+
+                if len(matches) >= 15:
+                    break
 
             if len(matches) >= 15:
                 break
 
-        return jsonify({"results": matches[:15]})
+        return jsonify({"results": matches})
+
     except Exception as e:
+        print(f"Search API Error: {e}")
         return jsonify({"error": str(e), "results": []}), 500
 
 # Fetch Active Waiting Room Queue
