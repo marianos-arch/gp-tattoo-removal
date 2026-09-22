@@ -618,6 +618,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       showAlert(`Updating ${selectedRows.length} rows...`, "#dbeafe", "#1e40af");
 
+      // Update inside applyBulkBtn listener in admin.js:
       for (let i = 0; i < selectedRows.length; i++) {
         const item = selectedRows[i];
         await fetch("/api/waiting-room/update", {
@@ -630,9 +631,9 @@ document.addEventListener('DOMContentLoaded', () => {
             action: item.action
           })
         });
-        await new Promise(r => setTimeout(r, 100));
+        // Pause 500ms between calls to avoid Apps Script lock contention
+        await new Promise(r => setTimeout(r, 500));
       }
-
       showAlert("Selected status updated!", "#dcfce7", "#166534");
       await loadWaitingRoom();
     });
