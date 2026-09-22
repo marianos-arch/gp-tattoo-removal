@@ -15,7 +15,7 @@ app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key-change-me")
 
-ADMIN_EMAILS = [email.strip() for email in os.environ.get("ADMIN_EMAILS", "marianos@gardenpathways.org").split(",") if email.strip()]
+ADMIN_EMAILS = [email.strip().lower() for email in os.environ.get("ADMIN_EMAILS", "marianos@gardenpathways.org").split(",") if email.strip()]
 
 # Google OAuth Setup
 oauth = OAuth(app)
@@ -49,7 +49,7 @@ def trigger_apps_script(row_index, name=None, action=None, placement=None):
 
     payload = {
         "sheetName": "Waiting Room",
-        "row_index": int(row_index) if row_index else None,
+        "row_index": int(row_index) if row_index is not None and str(row_index).isdigit() else None,
         "name": str(name).strip() if name else None,
         "action": action,
         "placement": str(placement) if placement is not None else None
@@ -250,19 +250,16 @@ def update_waiting_room():
             spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
             ws = spreadsheet.worksheet("Waiting Room")
             
-            target_row = None
+            target_row = int(row_idx) if row_idx and str(row_idx).isdigit() else None
             
-            # Find client row dynamically by Name in Column B (Column 2)
-            if name:
+            # Find client row dynamically by Name if row index isn't directly valid
+            if not target_row and name:
                 names_col = ws.col_values(2)
                 name_clean = str(name).strip().lower()
                 for i, col_val in enumerate(names_col[1:], start=2):
                     if str(col_val).strip().lower() == name_clean:
                         target_row = i
                         break
-
-            if not target_row and row_idx:
-                target_row = int(row_idx)
 
             if not target_row:
                 return jsonify({"error": "Client row could not be located"}), 404
@@ -292,17 +289,14 @@ def delete_waiting_room_row():
         spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
         ws = spreadsheet.worksheet("Waiting Room")
 
-        target_row = None
-        if name:
+        target_row = int(row_idx) if row_idx and str(row_idx).isdigit() else None
+        if not target_row and name:
             names_col = ws.col_values(2)
             name_clean = str(name).strip().lower()
             for i, col_val in enumerate(names_col[1:], start=2):
                 if str(col_val).strip().lower() == name_clean:
                     target_row = i
                     break
-
-        if not target_row and row_idx:
-            target_row = int(row_idx)
 
         if not target_row:
             return jsonify({"error": "Client row not found for deletion"}), 404
@@ -366,15 +360,18 @@ def trigger_google_login():
 def auth_callback():
     try:
         token = google.authorize_access_token()
-        email = token.get('userinfo', {}).get('email')
+        user_info = token.get('userinfo') or google.parse_id_token(token, nonce=None)
+        email = user_info.get('email', '').lower() if user_info else ''
+        
         is_admin = email in ADMIN_EMAILS if email else False
         session['user'] = {'email': email, 'is_admin': is_admin}
         
         if is_admin:
             return redirect(url_for('admin_dashboard'))
         return redirect(url_for('login_page', unauthorized=1))
-    except Exception:
-        return redirect(url_for('index'))
+    except Exception as e:
+        print(f"OAuth Callback Error: {e}")
+        return redirect(url_for('login_page'))
 
 @app.route("/admin")
 @admin_required
