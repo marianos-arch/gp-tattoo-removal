@@ -90,6 +90,49 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  async function preloadClientCache() {
+    const clientList = document.getElementById("clientList");
+    if (!clientList) return;
+  
+    try {
+      const res = await fetch("/api/clients");
+      if (!res.ok) {
+        console.error("Failed to fetch clients list:", res.status);
+        return;
+      }
+  
+      const data = await res.json();
+      console.log("Clients API response:", data); // Check browser console to inspect data shape
+  
+      // Handle array directly or nested object keys
+      const rawClients = Array.isArray(data) ? data : (data.clients || data.data || []);
+      
+      // Extract string values regardless of field naming convention
+      cachedClients = rawClients.map(item => {
+        if (typeof item === 'string') return item;
+        if (typeof item === 'object' && item !== null) {
+          return item.Name || item.name || item.Client_Name || item.client_name || item.full_name || '';
+        }
+        return '';
+      }).filter(Boolean);
+  
+      // Rebuild datalist options
+      clientList.innerHTML = "";
+      const fragment = document.createDocumentFragment();
+      
+      cachedClients.forEach(name => {
+        const option = document.createElement("option");
+        option.value = name;
+        fragment.appendChild(option);
+      });
+  
+      clientList.appendChild(fragment);
+      console.log(`Successfully cached ${cachedClients.length} clients for autocomplete.`);
+    } catch (err) {
+      console.error("Error preloading client cache:", err);
+    }
+  }
+  
   function getPlacementOptionsHTML(selectedValue) {
     const valStr = selectedValue !== null && selectedValue !== undefined ? String(selectedValue).trim() : "";
     let html = `<option value="">--</option>`;
