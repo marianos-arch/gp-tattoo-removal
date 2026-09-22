@@ -250,19 +250,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // Replace autoSaveSingleParticipant with this updated version
   async function autoSaveSingleParticipant(tr) {
     const rawRowIndex = tr.dataset.rowIndex;
     const rowIndex = parseInt(rawRowIndex, 10);
     const clientName = tr.dataset.clientName || "";
     const placement = tr.querySelector(".placement-select").value;
     const action = tr.querySelector(".action-select").value;
-
+  
     if (isNaN(rowIndex) && !clientName) {
       console.error("Invalid row index or name for auto-save:", rawRowIndex, clientName);
       showAlert("Error saving: Invalid Client Data", "#fee2e2", "#991b1b");
       return;
     }
-
+  
     const mobPlacement = tr.querySelector(".mob-place-label");
     const mobAction = tr.querySelector(".mob-status-label");
     if (mobPlacement) mobPlacement.innerText = `${placement || '-'}.`;
@@ -270,23 +271,31 @@ document.addEventListener('DOMContentLoaded', () => {
       mobAction.innerText = action;
       mobAction.className = 'mobile-status-tag action-' + action.replace(/\s+/g, '-');
     }
-
-    const res = await fetch("/api/waiting-room/update", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        row_index: rowIndex, 
-        name: clientName, 
-        placement: placement, 
-        action: action 
-      })
-    });
-
-    if (res.ok) {
-      showAlert("Updated!", "#dcfce7", "#166534");
-      await loadWaitingRoom();
-    } else {
-      showAlert("Update failed", "#fee2e2", "#991b1b");
+  
+    try {
+      const res = await fetch("/api/waiting-room/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          row_index: rowIndex, 
+          name: clientName, 
+          placement: placement, 
+          action: action 
+        })
+      });
+  
+      if (res.ok) {
+        showAlert("Updated!", "#dcfce7", "#166534");
+        // Allow Apps Script reindex/flush to complete before refreshing UI
+        setTimeout(async () => {
+          await loadWaitingRoom();
+        }, 1000);
+      } else {
+        showAlert("Update failed", "#fee2e2", "#991b1b");
+      }
+    } catch (err) {
+      console.error("Auto-save error:", err);
+      showAlert("Network error during save", "#fee2e2", "#991b1b");
     }
   }
 
@@ -502,15 +511,23 @@ document.addEventListener('DOMContentLoaded', () => {
   
     if (newIndex === -1) return;
   
-    // Calculate the new placement number based on where the row landed
     let newPlacement = String(newIndex + 1);
   
-    // If there is a row above, use its numerical placement + 1
-    const rowAbove = rows[newIndex - 1];
-    if (rowAbove) {
-      const aboveVal = parseInt(rowAbove.querySelector(".placement-select")?.value, 10);
-      if (!isNaN(aboveVal)) {
-        newPlacement = String(aboveVal + 1);
+    // If dragged to top
+    if (newIndex === 0) {
+      newPlacement = "1";
+    } else {
+      const rowAbove = rows[newIndex - 1];
+      const aboveValStr = rowAbove ? (rowAbove.querySelector(".placement-select")?.value || "").toUpperCase() : "";
+  
+      if (aboveValStr.startsWith("P")) {
+        // If dropped directly below a Priority row, default to position 1
+        newPlacement = "1";
+      } else {
+        const aboveVal = parseInt(aboveValStr, 10);
+        if (!isNaN(aboveVal)) {
+          newPlacement = String(aboveVal + 1);
+        }
       }
     }
   
@@ -521,13 +538,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const rowIndex = parseInt(draggedRow.dataset.rowIndex, 10);
     const clientName = draggedRow.dataset.clientName || "";
   
-    // Only update if the placement actually changed
     if (placementSelect && placementSelect.value !== newPlacement) {
       placementSelect.value = newPlacement;
       if (mobPlacementSelect) mobPlacementSelect.value = newPlacement;
       if (mobPlacementLabel) mobPlacementLabel.innerText = `${newPlacement}.`;
   
-      // Single network call to update ONLY the dragged row in Google Sheets
       try {
         const res = await fetch("/api/waiting-room/update", {
           method: "POST",
@@ -542,7 +557,9 @@ document.addEventListener('DOMContentLoaded', () => {
   
         if (res.ok) {
           showAlert("Queue order saved!", "#dcfce7", "#166534");
-          await loadWaitingRoom();
+          setTimeout(async () => {
+            await loadWaitingRoom();
+          }, 1200);
         } else {
           showAlert("Failed to save new position", "#fee2e2", "#991b1b");
         }
@@ -552,7 +569,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
   }
-
+  
   function getDragAfterElement(container, y) {
     const draggableElements = [...container.querySelectorAll('tr:not(.dragging)')];
     return draggableElements.reduce((closest, child) => {
