@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const clientSearchInput = document.getElementById("clientSearch");
   const clientList = document.getElementById("clientList");
+  const addClientForm = document.getElementById("addClientForm");
   const logsTableBody = document.getElementById("logsTableBody");
   const masterCheckbox = document.getElementById("masterCheckbox");
   const statusAlert = document.getElementById("statusAlert");
@@ -20,44 +21,72 @@ document.addEventListener('DOMContentLoaded', () => {
   const clearSelectionBtn = document.getElementById("clearSelectionBtn");
   
   let draggedRow = null;
+  let cachedClients = [];
 
-  // Utility: Debounce API requests to prevent spamming server on fast typing
-  function debounce(fn, delay = 250) {
-    let timeoutId;
-    return function (...args) {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => fn.apply(this, args), delay);
-    };
+  // Pre-cache client names on page load
+  async function preloadClientCache() {
+    if (!clientList) return;
+    try {
+      const res = await fetch("/api/clients");
+      if (!res.ok) return;
+
+      const data = await res.json();
+      
+      // Handle array of strings or array of objects [{ Name: "..." }]
+      const names = Array.isArray(data) ? data : (data.clients || []);
+      cachedClients = names.map(item => 
+        typeof item === 'string' ? item : (item.Name || item.name || '')
+      ).filter(Boolean);
+
+      // Populate datalist statically
+      clientList.innerHTML = "";
+      cachedClients.forEach(name => {
+        const option = document.createElement("option");
+        option.value = name;
+        clientList.appendChild(option);
+      });
+    } catch (err) {
+      console.error("Error preloading client cache:", err);
+    }
   }
 
-  // Auto-complete client name search (Supports First Last & Last, First)
-  if (clientSearchInput && clientList) {
-    const handleClientSearch = debounce(async (query) => {
-      if (query.length < 1) {
-        clientList.innerHTML = "";
+  // Handle 'Add Client' Form Submission
+  if (addClientForm) {
+    addClientForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const clientName = clientSearchInput.value.trim();
+      const placement = document.getElementById("placementInput").value;
+      const action = document.getElementById("actionInput").value;
+
+      if (!clientName) {
+        showAlert("Please enter or select a client name", "#fee2e2", "#991b1b");
         return;
       }
 
       try {
-        const res = await fetch(`/api/clients/search?q=${encodeURIComponent(query)}`);
-        if (!res.ok) return;
-
-        const matches = await res.json();
-        clientList.innerHTML = "";
-
-        matches.forEach(item => {
-          const option = document.createElement("option");
-          option.value = typeof item === 'string' ? item : (item.Name || item.name);
-          clientList.appendChild(option);
+        const res = await fetch("/api/waiting-room/add", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            name: clientName, 
+            placement: placement, 
+            action: action 
+          })
         });
-      } catch (err) {
-        console.error("Error fetching auto-complete names:", err);
-      }
-    }, 250);
 
-    clientSearchInput.addEventListener("input", function() {
-      const query = this.value.trim();
-      handleClientSearch(query);
+        if (res.ok) {
+          showAlert("Client added to waiting room!", "#dcfce7", "#166534");
+          addClientForm.reset();
+          await loadWaitingRoom();
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          showAlert(errData.message || "Failed to add client", "#fee2e2", "#991b1b");
+        }
+      } catch (err) {
+        console.error("Error submitting add client form:", err);
+        showAlert("Server connection error", "#fee2e2", "#991b1b");
+      }
     });
   }
 
@@ -535,6 +564,8 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => { statusAlert.style.display = "none"; }, 3500);
   }
 
+  // Initialize page data
+  preloadClientCache();
   loadWaitingRoom();
   loadLogs();
 });
