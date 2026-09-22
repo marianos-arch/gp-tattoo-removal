@@ -23,31 +23,77 @@ document.addEventListener('DOMContentLoaded', () => {
   let draggedRow = null;
   let cachedClients = [];
 
+  // Preload initial client cache / popular suggestions safely
   async function preloadClientCache() {
-  try {
-    const response = await fetch('/api/clients/search?q=');
-    if (!response.ok) {
-      throw new Error(`Failed to fetch clients list: ${response.status}`);
-    }
-    const data = await response.json();
+    if (!clientList) return;
     
-    // Handle array of strings or array of objects [{ Name: "..." }]
-    const names = Array.isArray(data) ? data : (data.clients || []);
-    cachedClients = names.map(item => 
-      typeof item === 'string' ? item : (item.Name || item.name || '')
-    ).filter(Boolean);
+    try {
+      const res = await fetch('/api/clients/search?q=');
+      if (!res.ok) {
+        console.error("Failed to fetch clients list:", res.status);
+        return;
+      }
+  
+      const data = await res.json();
+      
+      const rawClients = Array.isArray(data) ? data : (data.results || data.clients || data.data || []);
+      
+      cachedClients = rawClients.map(item => {
+        if (typeof item === 'string') return item;
+        if (typeof item === 'object' && item !== null) {
+          return item.Name || item.name || item.Client_Name || item.client_name || item.full_name || '';
+        }
+        return '';
+      }).filter(Boolean);
+  
+      updateDatalist(cachedClients);
+    } catch (err) {
+      console.error("Error preloading client cache:", err);
+    }
+  }
 
-    // Populate datalist statically
+  // Helper to update datalist options
+  function updateDatalist(names) {
+    if (!clientList) return;
     clientList.innerHTML = "";
-    cachedClients.forEach(name => {
+    const fragment = document.createDocumentFragment();
+    names.forEach(name => {
       const option = document.createElement("option");
       option.value = name;
-      clientList.appendChild(option);
+      fragment.appendChild(option);
     });
-    // process or store data.results ...
-  } catch (err) {
-    console.error('Error preloading client cache:', err);
+    clientList.appendChild(fragment);
   }
+
+  // Dynamic live search requiring at least 3 characters
+  if (clientSearchInput) {
+    clientSearchInput.addEventListener("input", async function() {
+      const searchTerm = this.value.trim();
+
+      if (searchTerm.length < 3) {
+        return; // Don't call backend until 3 characters are typed
+      }
+
+      try {
+        const res = await fetch(`/api/clients/search?q=${encodeURIComponent(searchTerm)}`);
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const rawClients = Array.isArray(data) ? data : (data.results || data.clients || []);
+
+        const results = rawClients.map(item => {
+          if (typeof item === 'string') return item;
+          if (typeof item === 'object' && item !== null) {
+            return item.Name || item.name || item.Client_Name || item.client_name || '';
+          }
+          return '';
+        }).filter(Boolean);
+
+        updateDatalist(results);
+      } catch (err) {
+        console.error("Dynamic client search error:", err);
+      }
+    });
   }
 
   // Handle 'Add Client' Form Submission
@@ -90,49 +136,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  async function preloadClientCache() {
-    const clientList = document.getElementById("clientList");
-    if (!clientList) return;
-    
-    try {
-      const res = await fetch('/api/clients/search?q=' + encodeURIComponent(searchTerm));
-      if (!res.ok) {
-        console.error("Failed to fetch clients list:", res.status);
-        return;
-      }
-  
-      const data = await res.json();
-      console.log("Clients API response:", data); // Check browser console to inspect data shape
-  
-      // Handle array directly or nested object keys
-      const rawClients = Array.isArray(data) ? data : (data.clients || data.data || []);
-      
-      // Extract string values regardless of field naming convention
-      cachedClients = rawClients.map(item => {
-        if (typeof item === 'string') return item;
-        if (typeof item === 'object' && item !== null) {
-          return item.Name || item.name || item.Client_Name || item.client_name || item.full_name || '';
-        }
-        return '';
-      }).filter(Boolean);
-  
-      // Rebuild datalist options
-      clientList.innerHTML = "";
-      const fragment = document.createDocumentFragment();
-      
-      cachedClients.forEach(name => {
-        const option = document.createElement("option");
-        option.value = name;
-        fragment.appendChild(option);
-      });
-  
-      clientList.appendChild(fragment);
-      console.log(`Successfully cached ${cachedClients.length} clients for autocomplete.`);
-    } catch (err) {
-      console.error("Error preloading client cache:", err);
-    }
-  }
-  
   function getPlacementOptionsHTML(selectedValue) {
     const valStr = selectedValue !== null && selectedValue !== undefined ? String(selectedValue).trim() : "";
     let html = `<option value="">--</option>`;
@@ -609,12 +612,10 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => { statusAlert.style.display = "none"; }, 3500);
   }
 
-  // Add this helper function to auto-set the next placement position in the form
   function autoSetNextPlacement(queueData) {
     const placementInput = document.getElementById("placementInput");
     if (!placementInput) return;
   
-    // Calculate highest numeric placement currently in use
     let maxPlacement = 0;
     
     if (Array.isArray(queueData)) {
@@ -628,11 +629,9 @@ document.addEventListener('DOMContentLoaded', () => {
   
     const nextPlacement = String(maxPlacement + 1);
   
-    // Set selected value if the calculated position exists as an option
     if (placementInput.querySelector(`option[value="${nextPlacement}"]`)) {
       placementInput.value = nextPlacement;
     } else {
-      // Default fallback to Next number or standard dropdown state
       placementInput.value = nextPlacement;
     }
   }
