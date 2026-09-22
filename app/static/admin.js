@@ -21,11 +21,22 @@ document.addEventListener('DOMContentLoaded', () => {
   
   let draggedRow = null;
 
-  // Auto-complete client name search
+  // Utility: Debounce API requests to prevent spamming server on fast typing
+  function debounce(fn, delay = 250) {
+    let timeoutId;
+    return function (...args) {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => fn.apply(this, args), delay);
+    };
+  }
+
+  // Auto-complete client name search (Supports First Last & Last, First)
   if (clientSearchInput && clientList) {
-    clientSearchInput.addEventListener("input", async function() {
-      const query = this.value.trim();
-      if (query.length < 1) return;
+    const handleClientSearch = debounce(async (query) => {
+      if (query.length < 1) {
+        clientList.innerHTML = "";
+        return;
+      }
 
       try {
         const res = await fetch(`/api/clients/search?q=${encodeURIComponent(query)}`);
@@ -42,6 +53,11 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) {
         console.error("Error fetching auto-complete names:", err);
       }
+    }, 250);
+
+    clientSearchInput.addEventListener("input", function() {
+      const query = this.value.trim();
+      handleClientSearch(query);
     });
   }
 
@@ -102,7 +118,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateBatchBarState() {
-    // Get unique row indices from checked checkboxes across desktop and mobile
     const checkedRows = new Set(
       [...queueTableBody.querySelectorAll(".row-checkbox:checked")].map(cb => cb.value)
     );
@@ -119,7 +134,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
   
-    // Calculate unique total rows
     const totalRows = new Set(
       [...queueTableBody.querySelectorAll(".row-checkbox")].map(cb => cb.value)
     ).size;
@@ -474,7 +488,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const deleteSelectedBtn = document.getElementById("deleteSelectedBtn");
   if (deleteSelectedBtn) {
     deleteSelectedBtn.addEventListener("click", async () => {
-      // Collect unique row indices
       const selectedRowIndexes = [...new Set(
         [...queueTableBody.querySelectorAll(".row-checkbox:checked")].map(cb => parseInt(cb.value, 10))
       )];
