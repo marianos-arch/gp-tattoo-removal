@@ -49,20 +49,21 @@ document.addEventListener('DOMContentLoaded', () => {
     let placedCount = 0;
     const inProgressList = [];
     const whosNextList = [];
-
+    
     rows.forEach(row => {
       const placementVal = String(row[0] || '').trim();
       const rawStatus = String(row[1] || 'Pending').trim();
-      const statusVal = rawStatus.toLowerCase();
-
+      // Normalize string by removing hyphens and spaces
+      const statusVal = rawStatus.toLowerCase().replace(/[\s-]/g, '');
+    
       const isNumeric = !isNaN(parseInt(placementVal, 10));
       const isPriority = placementVal.toUpperCase().startsWith('P');
-
+    
       if (isNumeric || isPriority) placedCount++;
-
-      if (statusVal === 'in progress' || statusVal === 'inprogress') {
+    
+      if (statusVal === 'inprogress') {
         inProgressList.push({ id: placementVal, status: rawStatus });
-      } else if (statusVal === 'check-in' || statusVal === 'checkin') {
+      } else if (statusVal === 'checkin') {
         whosNextList.push({ id: placementVal, status: rawStatus, isCheckIn: true });
       }
     });
