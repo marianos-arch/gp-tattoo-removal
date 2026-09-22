@@ -495,43 +495,59 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function updatePlacementsAfterReorder() {
-    const rows = queueTableBody.querySelectorAll("tr");
-    let updatedCount = 0;
-    
-    for (let i = 0; i < rows.length; i++) {
-      const tr = rows[i];
-      const placementSelect = tr.querySelector(".placement-select");
-      const currentValue = placementSelect ? placementSelect.value : "";
-      
-      if (currentValue && !currentValue.startsWith("P") && currentValue !== "Overflow") {
-        const newPlacement = String(i + 1);
-        const mobPlacementLabel = tr.querySelector(".mob-place-label");
-        const actionSelect = tr.querySelector(".action-select");
-        const rowIndex = parseInt(tr.dataset.rowIndex, 10);
-        const clientName = tr.dataset.clientName || "";
-        
-        if (placementSelect && placementSelect.value !== newPlacement && (!isNaN(rowIndex) || clientName)) {
-          placementSelect.value = newPlacement;
-          if (mobPlacementLabel) mobPlacementLabel.innerText = `${newPlacement}.`;
-          
-          await fetch("/api/waiting-room/update", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              row_index: rowIndex,
-              name: clientName,
-              placement: newPlacement,
-              action: actionSelect.value
-            })
-          });
-          updatedCount++;
-        }
+    if (!draggedRow) return;
+  
+    const rows = [...queueTableBody.querySelectorAll("tr")];
+    const newIndex = rows.indexOf(draggedRow);
+  
+    if (newIndex === -1) return;
+  
+    // Calculate the new placement number based on where the row landed
+    let newPlacement = String(newIndex + 1);
+  
+    // If there is a row above, use its numerical placement + 1
+    const rowAbove = rows[newIndex - 1];
+    if (rowAbove) {
+      const aboveVal = parseInt(rowAbove.querySelector(".placement-select")?.value, 10);
+      if (!isNaN(aboveVal)) {
+        newPlacement = String(aboveVal + 1);
       }
     }
-    
-    if (updatedCount > 0) {
-      showAlert("Queue order saved!", "#dcfce7", "#166534");
-      await loadWaitingRoom();
+  
+    const placementSelect = draggedRow.querySelector(".placement-select");
+    const actionSelect = draggedRow.querySelector(".action-select");
+    const mobPlacementLabel = draggedRow.querySelector(".mob-place-label");
+    const rowIndex = parseInt(draggedRow.dataset.rowIndex, 10);
+    const clientName = draggedRow.dataset.clientName || "";
+  
+    // Only update if the placement actually changed
+    if (placementSelect && placementSelect.value !== newPlacement) {
+      placementSelect.value = newPlacement;
+      if (mobPlacementLabel) mobPlacementLabel.innerText = `${newPlacement}.`;
+  
+      // Single network call to update ONLY the dragged row in Google Sheets
+      try {
+        const res = await fetch("/api/waiting-room/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            row_index: rowIndex,
+            name: clientName,
+            placement: newPlacement,
+            action: actionSelect ? actionSelect.value : "Pending"
+          })
+        });
+  
+        if (res.ok) {
+          showAlert("Queue order saved!", "#dcfce7", "#166534");
+          await loadWaitingRoom();
+        } else {
+          showAlert("Failed to save new position", "#fee2e2", "#991b1b");
+        }
+      } catch (err) {
+        console.error("Failed to update dragged row position:", err);
+        showAlert("Network error saving new position", "#fee2e2", "#991b1b");
+      }
     }
   }
 
