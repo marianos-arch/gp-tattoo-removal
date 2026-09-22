@@ -40,8 +40,9 @@ def get_sheets_client():
     creds = Credentials.from_service_account_info(info, scopes=scopes)
     return gspread.authorize(creds)
 
+
 def trigger_apps_script(row_index, action=None, placement=None):
-    """Sends payload to Apps Script doPost endpoint."""
+    """Sends payload to Apps Script doPost endpoint to trigger handleEdit automation."""
     url = os.environ.get("APPS_SCRIPT_URL")
     if not url:
         print("Warning: APPS_SCRIPT_URL environment variable is not set.")
@@ -55,8 +56,17 @@ def trigger_apps_script(row_index, action=None, placement=None):
     }
 
     try:
-        response = requests.post(url, json=payload, timeout=10)
-        return response.ok
+        # allow_redirects=True is required because Apps Script redirects webhooks
+        response = requests.post(url, json=payload, timeout=15, allow_redirects=True)
+        
+        if response.ok:
+            res_data = response.json()
+            if res_data.get("status") == "success":
+                return True
+            else:
+                print(f"Apps Script Error Response: {res_data.get('message') or res_data.get('error')}")
+                return False
+        return False
     except Exception as e:
         print(f"Failed to call Apps Script: {e}")
         return False
