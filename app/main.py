@@ -256,15 +256,18 @@ def update_waiting_room():
         success = trigger_apps_script(row_idx, action=action, placement=placement)
 
         # 2. Fallback direct write to Google Sheet if Apps Script fails or is unconfigured
+        # main.py inside /api/waiting-room/update
+        # 2. Fallback direct write if Apps Script fails or is unconfigured
         if not success:
             gc = get_sheets_client()
             spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
             ws = spreadsheet.worksheet("Waiting Room")
             
-            if placement is not None:
-                ws.update_cell(row_idx, 4, str(placement))
+            # Write Action FIRST so row movements don't alter target row
             if action is not None:
                 ws.update_cell(row_idx, 5, str(action))
+            if placement is not None:
+                ws.update_cell(row_idx, 4, str(placement))
                 
             return jsonify({"status": "success", "note": "Updated via gspread direct write"})
 
