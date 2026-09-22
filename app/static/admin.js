@@ -102,9 +102,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateBatchBarState() {
-    const checkedBoxes = queueTableBody.querySelectorAll(".row-checkbox:checked");
-    const count = checkedBoxes.length;
-
+    // Get unique row indices from checked checkboxes across desktop and mobile
+    const checkedRows = new Set(
+      [...queueTableBody.querySelectorAll(".row-checkbox:checked")].map(cb => cb.value)
+    );
+    const count = checkedRows.size;
+  
     if (count > 0) {
       if (selectedCountBadge) selectedCountBadge.innerText = `${count} Selected`;
       if (batchActionBar) batchActionBar.classList.add("visible");
@@ -115,13 +118,17 @@ document.addEventListener('DOMContentLoaded', () => {
         masterCheckbox.indeterminate = false;
       }
     }
-
-    const totalBoxes = queueTableBody.querySelectorAll(".row-checkbox").length;
-    if (masterCheckbox && totalBoxes > 0) {
-      if (count === totalBoxes) {
+  
+    // Calculate unique total rows
+    const totalRows = new Set(
+      [...queueTableBody.querySelectorAll(".row-checkbox")].map(cb => cb.value)
+    ).size;
+  
+    if (masterCheckbox && totalRows > 0) {
+      if (count === totalRows) {
         masterCheckbox.checked = true;
         masterCheckbox.indeterminate = false;
-      } else if (count > 0 && count < totalBoxes) {
+      } else if (count > 0 && count < totalRows) {
         masterCheckbox.checked = false;
         masterCheckbox.indeterminate = true;
       }
@@ -467,18 +474,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const deleteSelectedBtn = document.getElementById("deleteSelectedBtn");
   if (deleteSelectedBtn) {
     deleteSelectedBtn.addEventListener("click", async () => {
-      const selectedCheckboxes = [...queueTableBody.querySelectorAll("td .row-checkbox:checked")];
-      if (selectedCheckboxes.length === 0) return;
-
-      if (!confirm(`Are you sure you want to delete ${selectedCheckboxes.length} client(s)?`)) return;
-
-      showAlert(`Deleting ${selectedCheckboxes.length} row(s)...`, "#fee2e2", "#991b1b");
-
-      for (let i = 0; i < selectedCheckboxes.length; i++) {
-        const cb = selectedCheckboxes[i];
-        const tr = cb.closest("tr");
-        const rowIndex = parseInt(tr.dataset.rowIndex, 10);
-
+      // Collect unique row indices
+      const selectedRowIndexes = [...new Set(
+        [...queueTableBody.querySelectorAll(".row-checkbox:checked")].map(cb => parseInt(cb.value, 10))
+      )];
+  
+      if (selectedRowIndexes.length === 0) return;
+  
+      if (!confirm(`Are you sure you want to delete ${selectedRowIndexes.length} client(s)?`)) return;
+  
+      showAlert(`Deleting ${selectedRowIndexes.length} row(s)...`, "#fee2e2", "#991b1b");
+  
+      for (let i = 0; i < selectedRowIndexes.length; i++) {
+        const rowIndex = selectedRowIndexes[i];
+  
         await fetch("/api/waiting-room/delete", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -486,7 +495,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         await new Promise(r => setTimeout(r, 100));
       }
-
+  
       await loadWaitingRoom();
       showAlert("Selected row(s) deleted successfully!", "#dcfce7", "#166534");
     });
