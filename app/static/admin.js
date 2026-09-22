@@ -89,18 +89,16 @@ document.addEventListener('DOMContentLoaded', () => {
       return getRank(a.Placement) - getRank(b.Placement);
     });
 
-    if (standardRows.length < 25 && overflowRows.length > 0) {
-      const slotsAvailable = 25 - standardRows.length;
-      const toPromote = overflowRows.splice(0, slotsAvailable);
-      standardRows = standardRows.concat(toPromote);
-    }
-
-    let numberedRows = standardRows.map((item, index) => {
-      item.Placement = String(index + 1);
-      return item;
+    standardRows.sort((a, b) => {
+      const numA = parseInt(a.Placement, 10);
+      const numB = parseInt(b.Placement, 10);
+      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+      if (!isNaN(numA)) return -1;
+      if (!isNaN(numB)) return 1;
+      return 0;
     });
 
-    return [...pRows, ...numberedRows, ...overflowRows, ...blankRows];
+    return [...pRows, ...standardRows, ...overflowRows, ...blankRows];
   }
 
   function updateBatchBarState() {
@@ -367,26 +365,30 @@ document.addEventListener('DOMContentLoaded', () => {
     
     for (let i = 0; i < rows.length; i++) {
       const tr = rows[i];
-      const newPlacement = String(i + 1);
       const placementSelect = tr.querySelector(".placement-select");
-      const mobPlacementLabel = tr.querySelector(".mob-place-label");
-      const actionSelect = tr.querySelector(".action-select");
-      const rowIndex = parseInt(tr.dataset.rowIndex, 10);
+      const currentValue = placementSelect ? placementSelect.value : "";
       
-      if (placementSelect && placementSelect.value !== newPlacement && !isNaN(rowIndex)) {
-        placementSelect.value = newPlacement;
-        if (mobPlacementLabel) mobPlacementLabel.innerText = `${newPlacement}.`;
+      if (currentValue && !currentValue.startsWith("P") && currentValue !== "Overflow") {
+        const newPlacement = String(i + 1);
+        const mobPlacementLabel = tr.querySelector(".mob-place-label");
+        const actionSelect = tr.querySelector(".action-select");
+        const rowIndex = parseInt(tr.dataset.rowIndex, 10);
         
-        await fetch("/api/waiting-room/update", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            row_index: rowIndex,
-            placement: newPlacement,
-            action: actionSelect.value
-          })
-        });
-        updatedCount++;
+        if (placementSelect && placementSelect.value !== newPlacement && !isNaN(rowIndex)) {
+          placementSelect.value = newPlacement;
+          if (mobPlacementLabel) mobPlacementLabel.innerText = `${newPlacement}.`;
+          
+          await fetch("/api/waiting-room/update", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              row_index: rowIndex,
+              placement: newPlacement,
+              action: actionSelect.value
+            })
+          });
+          updatedCount++;
+        }
       }
     }
     
