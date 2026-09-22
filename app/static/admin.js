@@ -23,6 +23,21 @@ document.addEventListener('DOMContentLoaded', () => {
   let draggedRow = null;
   let cachedClients = [];
 
+  // Enable drop target for Desktop HTML5 Drag & Drop
+  queueTableBody.addEventListener("dragover", (e) => {
+    e.preventDefault(); // Prevents the red 'not-allowed' circle symbol
+    e.dataTransfer.dropEffect = "move"; // Shows the move cursor
+
+    if (!draggedRow) return;
+
+    const afterElement = getDragAfterElement(queueTableBody, e.clientY);
+    if (afterElement == null) {
+      queueTableBody.appendChild(draggedRow);
+    } else {
+      queueTableBody.insertBefore(draggedRow, afterElement);
+    }
+  });
+
   // Preload initial client cache / popular suggestions safely
   async function preloadClientCache() {
     if (!clientList) return;
@@ -32,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!res.ok) {
         console.error("Failed to fetch clients list:", res.status);
         return;
-      }
+      }  
   
       const data = await res.json();
       
@@ -79,13 +94,11 @@ document.addEventListener('DOMContentLoaded', () => {
     clientSearchInput.addEventListener("input", debounce(async function() {
       const searchTerm = this.value.trim();
 
-      // Don't call backend until at least 3 characters are typed
       if (searchTerm.length < 3) return;
 
       try {
         const res = await fetch(`/api/clients/search?q=${encodeURIComponent(searchTerm)}`);
         
-        // Silently exit if server returns non-200 (500, 404, etc)
         if (!res.ok) {
           console.warn(`Client search returned status ${res.status}`);
           return;
@@ -304,7 +317,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const currentPlacement = row.Placement || '';
 
         tr.innerHTML = `
-          <td class="drag-handle">⋮⋮</td>
+          <td class="drag-handle" style="cursor: grab;">⋮⋮</td>
           <td><input type="checkbox" class="row-checkbox" value="${row.row_index}"></td>
           <td style="font-weight: 600; color: #0f172a;">${row.Name || ''}</td>
           <td>
@@ -383,10 +396,14 @@ document.addEventListener('DOMContentLoaded', () => {
           updateBatchBarState();
         });
 
-        tr.addEventListener("dragstart", () => {
+        // Desktop HTML5 drag event handlers
+        tr.addEventListener("dragstart", (e) => {
           draggedRow = tr;
           tr.classList.add("dragging");
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", ""); // Required by Firefox to initiate dragging
         });
+
         tr.addEventListener("dragend", async () => {
           tr.classList.remove("dragging");
           draggedRow = null;
