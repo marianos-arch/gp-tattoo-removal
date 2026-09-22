@@ -95,7 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!clientList) return;
     
     try {
-      const res = await fetch('/api/clients/search?q=' + encodeURIComponent(searchTerm)));
+      const res = await fetch('/api/clients/search?q=' + encodeURIComponent(searchTerm));
       if (!res.ok) {
         console.error("Failed to fetch clients list:", res.status);
         return;
