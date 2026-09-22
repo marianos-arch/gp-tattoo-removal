@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
           return item.Name || item.name || item.Client_Name || item.client_name || item.full_name || '';
         }
         return '';
-      }).filter(Boolean);
+      }).filter(Boolean);  
   
       updateDatalist(cachedClients);
     } catch (err) {
@@ -406,8 +406,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         tr.addEventListener("dragend", async () => {
           tr.classList.remove("dragging");
-          draggedRow = null;
           await updatePlacementsAfterReorder();
+          draggedRow = null;
         });
 
         attachMobilePressAndHold(tr);
@@ -488,8 +488,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (isHolding) {
         tr.classList.remove('mobile-holding', 'dragging');
         isHolding = false;
-        draggedRow = null;
         await updatePlacementsAfterReorder();
+        draggedRow = null;
       }
     });
   }
@@ -517,12 +517,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const placementSelect = draggedRow.querySelector(".placement-select");
     const actionSelect = draggedRow.querySelector(".action-select");
     const mobPlacementLabel = draggedRow.querySelector(".mob-place-label");
+    const mobPlacementSelect = draggedRow.querySelector(".mob-place-sel");
     const rowIndex = parseInt(draggedRow.dataset.rowIndex, 10);
     const clientName = draggedRow.dataset.clientName || "";
   
     // Only update if the placement actually changed
     if (placementSelect && placementSelect.value !== newPlacement) {
       placementSelect.value = newPlacement;
+      if (mobPlacementSelect) mobPlacementSelect.value = newPlacement;
       if (mobPlacementLabel) mobPlacementLabel.innerText = `${newPlacement}.`;
   
       // Single network call to update ONLY the dragged row in Google Sheets
