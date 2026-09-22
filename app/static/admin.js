@@ -217,6 +217,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch("/api/waiting-room");
       const data = await res.json();
       
+      autoSetNextPlacement(data.queue || []);
+      
       queueTableBody.innerHTML = "";
       if (!data.queue || data.queue.length === 0) {
         queueTableBody.innerHTML = `<tr><td colspan="5" class="table-loading">No clients currently in waiting room.</td></tr>`;
@@ -562,6 +564,34 @@ document.addEventListener('DOMContentLoaded', () => {
     statusAlert.style.color = color;
     statusAlert.style.display = "block";
     setTimeout(() => { statusAlert.style.display = "none"; }, 3500);
+  }
+
+  // Add this helper function to auto-set the next placement position in the form
+  function autoSetNextPlacement(queueData) {
+    const placementInput = document.getElementById("placementInput");
+    if (!placementInput) return;
+  
+    // Calculate highest numeric placement currently in use
+    let maxPlacement = 0;
+    
+    if (Array.isArray(queueData)) {
+      queueData.forEach(item => {
+        const val = parseInt(item.Placement, 10);
+        if (!isNaN(val) && val > maxPlacement) {
+          maxPlacement = val;
+        }
+      });
+    }
+  
+    const nextPlacement = String(maxPlacement + 1);
+  
+    // Set selected value if the calculated position exists as an option
+    if (placementInput.querySelector(`option[value="${nextPlacement}"]`)) {
+      placementInput.value = nextPlacement;
+    } else {
+      // Default fallback to Next number or standard dropdown state
+      placementInput.value = nextPlacement;
+    }
   }
 
   // Initialize page data
