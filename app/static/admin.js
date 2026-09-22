@@ -23,31 +23,31 @@ document.addEventListener('DOMContentLoaded', () => {
   let draggedRow = null;
   let cachedClients = [];
 
-  // Pre-cache client names on page load
   async function preloadClientCache() {
-    if (!clientList) return;
-    try {
-      const res = await fetch("/api/clients");
-      if (!res.ok) return;
-
-      const data = await res.json();
-      
-      // Handle array of strings or array of objects [{ Name: "..." }]
-      const names = Array.isArray(data) ? data : (data.clients || []);
-      cachedClients = names.map(item => 
-        typeof item === 'string' ? item : (item.Name || item.name || '')
-      ).filter(Boolean);
-
-      // Populate datalist statically
-      clientList.innerHTML = "";
-      cachedClients.forEach(name => {
-        const option = document.createElement("option");
-        option.value = name;
-        clientList.appendChild(option);
-      });
-    } catch (err) {
-      console.error("Error preloading client cache:", err);
+  try {
+    const response = await fetch('/api/clients/search?q=');
+    if (!response.ok) {
+      throw new Error(`Failed to fetch clients list: ${response.status}`);
     }
+    const data = await response.json();
+    
+    // Handle array of strings or array of objects [{ Name: "..." }]
+    const names = Array.isArray(data) ? data : (data.clients || []);
+    cachedClients = names.map(item => 
+      typeof item === 'string' ? item : (item.Name || item.name || '')
+    ).filter(Boolean);
+
+    // Populate datalist statically
+    clientList.innerHTML = "";
+    cachedClients.forEach(name => {
+      const option = document.createElement("option");
+      option.value = name;
+      clientList.appendChild(option);
+    });
+    // process or store data.results ...
+  } catch (err) {
+    console.error('Error preloading client cache:', err);
+  }
   }
 
   // Handle 'Add Client' Form Submission
