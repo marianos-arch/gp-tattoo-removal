@@ -54,7 +54,6 @@ def trigger_apps_script(row_index, action=None, placement=None):
     }
 
     try:
-        # Calls the doPost function deployed in Google Apps Script
         response = requests.post(url, json=payload, timeout=10)
         return response.ok
     except Exception as e:
@@ -86,13 +85,13 @@ def get_placements():
         return jsonify({"placements": records, "spots_left": len(records)})
     except Exception as e:
         return jsonify({"error": str(e), "placements": [], "spots_left": 0}), 500
-
+        
 # Dynamic search across Sheets A-Z for autocomplete
 @app.route("/api/clients/search")
 @admin_required
 def search_clients():
     query = request.args.get("q", "").strip().lower()
-    if not query or len(query) < 2:
+    if not query or len(query) < 1:
         return jsonify({"results": []})
 
     try:
@@ -100,18 +99,41 @@ def search_clients():
         spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
         
         matches = []
-        first_letter = query[0].upper()
-        letters_to_check = [first_letter] if first_letter in string.ascii_uppercase else string.ascii_uppercase
+        # Split search query into individual words (e.g., "john smith" -> ["john", "smith"])
+        query_parts = re.findall(r'\w+', query)
 
-        for letter in letters_to_check:
+        if not query_parts:
+            return jsonify({"results": []})
+
+        # To cover both "First Last" and "Last, First", we check all letter tabs A-Z
+        for letter in string.ascii_uppercase:
             try:
                 ws = spreadsheet.worksheet(letter)
-                names = ws.col_values(1)[1:]  # Read Column A (skipping header)
-                for name in names:
-                    if query in name.lower():
-                        matches.append(name)
-            except Exception:
+                col_a_values = ws.col_values(1)
+                
+                # Column A data starts on Row 3 (Index 2 in 0-indexed Python list)
+                if len(col_a_values) >= 3:
+                    names = col_a_values[2:]  # Row 3 onwards
+                    for raw_name in names:
+                        name = raw_name.strip()
+                        if not name:
+                            continue
+                        
+                        name_lower = name.lower()
+                        # Match if EVERY word in the search query exists in the client's name
+                        if all(part in name_lower for part in query_parts):
+                            matches.append(name)
+                            
+                        if len(matches) >= 15:
+                            break
+            except gspread.exceptions.WorksheetNotFound:
                 continue
+            except Exception as sheet_err:
+                print(f"Error reading sheet '{letter}': {sheet_err}")
+                continue
+
+            if len(matches) >= 15:
+                break
 
         return jsonify({"results": matches[:15]})
     except Exception as e:
@@ -126,18 +148,15 @@ def get_waiting_room():
         spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
         ws = spreadsheet.worksheet("Waiting Room")
         
-        # Pull raw rows starting from row 1 (0-indexed)
         all_rows = ws.get_all_values()
         if len(all_rows) < 2:
             return jsonify({"queue": []})
 
         queue = []
-        # Row 1 is header (index 0). Data starts at Row 2 (index 1) or Row 3
         for idx, row in enumerate(all_rows[1:], start=3):
             if not row or not any(row):
                 continue
             
-            # Map columns explicitly: Col B (idx 1) = Name, Col D (idx 3) = Placement, Col E (idx 4) = Action
             name = row[1].strip() if len(row) > 1 else ""
             placement_val = str(row[3]).strip() if len(row) > 3 else ""
             action_val = str(row[4]).strip() if len(row) > 4 else ""
@@ -150,7 +169,6 @@ def get_waiting_room():
                     "Action": action_val
                 })
         
-        # Sort queue by numeric placement value (e.g. 1, 2, 3...) or string if text (e.g., "OVERFLOW")
         def parse_placement_sort(item):
             val = item["Placement"]
             nums = re.findall(r'\d+', val)
@@ -181,7 +199,6 @@ def add_to_waiting_room():
         spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
         ws = spreadsheet.worksheet("Waiting Room")
 
-        # Append row format: [Row, Name, Date, Placement, Action]
         ws.append_row(["", name, "", placement, action])
         return jsonify({"status": "success"})
     except Exception as e:
@@ -200,13 +217,11 @@ def update_waiting_room():
         if not row_idx:
             return jsonify({"error": "Row index is required"}), 400
 
-        # Delegate execution to Apps Script's doPost handler
         success = trigger_apps_script(row_idx, action=action, placement=placement)
 
         if success:
             return jsonify({"status": "success"})
         else:
-            # Fallback to direct gspread update if Apps Script call fails
             gc = get_sheets_client()
             spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
             ws = spreadsheet.worksheet("Waiting Room")
@@ -254,23 +269,18 @@ def get_logs():
         spreadsheet = gc.open_by_key(spreadsheet_id)
         ws = spreadsheet.worksheet("Logs")
         
-        # Get all raw rows from the sheet
         rows = ws.get_all_values()
         
-        # We need at least 3 rows (Row 3 is the first data row)
         if len(rows) < 3:
             return jsonify({"logs": []})
 
-        # Data rows start at Row 3 (0-based index 2)
         data_rows = rows[2:]
 
         logs = []
         for row in reversed(data_rows):
-            # Skip empty rows
             if not any(row):
                 continue
 
-            # Directly map Column A through Column F based on index position
             record = {
                 "Submission Time": row[0].strip() if len(row) > 0 else "",
                 "Name": row[1].strip() if len(row) > 1 else "",
@@ -280,7 +290,6 @@ def get_logs():
                 "Reviewed At": row[5].strip() if len(row) > 5 else ""
             }
 
-            # Only append rows that have content
             if record["Name"] or record["Submission Time"]:
                 logs.append(record)
         
