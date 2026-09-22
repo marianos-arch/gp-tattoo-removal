@@ -4,14 +4,12 @@ import string
 import re
 import requests
 from functools import wraps
+from datetime import datetime
 from flask import Flask, render_template, jsonify, session, redirect, url_for, request
 from werkzeug.middleware.proxy_fix import ProxyFix
 from authlib.integrations.flask_client import OAuth
 import gspread
 from google.oauth2.service_account import Credentials
-from datetime import datetime
-
-
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
@@ -29,7 +27,6 @@ google = oauth.register(
     client_kwargs={'scope': 'openid email profile'}
 )
 
-# Helper function to get authenticated Google Sheets client
 def get_sheets_client():
     raw_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
     if not raw_json:
@@ -44,16 +41,17 @@ def get_sheets_client():
     return gspread.authorize(creds)
 
 def trigger_apps_script(row_index, action=None, placement=None):
-    """Sends payload to Apps Script doPost endpoint to trigger handleEdit automation."""
+    """Sends payload to Apps Script doPost endpoint."""
     url = os.environ.get("APPS_SCRIPT_URL")
     if not url:
         print("Warning: APPS_SCRIPT_URL environment variable is not set.")
         return False
 
     payload = {
-        "row_index": row_index,
+        "sheetName": "Waiting Room",
+        "row_index": int(row_index),
         "action": action,
-        "placement": placement
+        "placement": str(placement) if placement is not None else None
     }
 
     try:
@@ -82,13 +80,15 @@ def index():
 def get_placements():
     try:
         gc = get_sheets_client()
-        sheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID")).sheet1
+        # Explicitly open "Waiting Room" tab instead of sheet1
+        spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
+        sheet = spreadsheet.worksheet("Waiting Room")
         
         records = sheet.get_all_records()
         return jsonify({"placements": records, "spots_left": len(records)})
     except Exception as e:
         return jsonify({"error": str(e), "placements": [], "spots_left": 0}), 500
-        
+
 # Dynamic search across Sheets A-Z for autocomplete
 @app.route("/api/clients/search")
 @admin_required
@@ -105,7 +105,6 @@ def search_clients():
         gc = get_sheets_client()
         spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
 
-        # 1. Fetch Column A for tabs A-Z in ONE batch call instead of 26 separate HTTP requests
         ranges = [f"'{letter}'!A3:A" for letter in string.ascii_uppercase]
         batch_response = spreadsheet.values_batch_get(ranges)
         value_ranges = batch_response.get("valueRanges", [])
@@ -113,7 +112,6 @@ def search_clients():
         matches = []
         seen = set()
 
-        # 2. Iterate through returned data
         for vr in value_ranges:
             rows = vr.get("values", [])
             for row in rows:
@@ -126,7 +124,6 @@ def search_clients():
 
                 name_lower = raw_name.lower()
                 
-                # Check if all terms in the query exist in the name (handles "John Smith" and "Smith, John")
                 if all(part in name_lower for part in query_parts):
                     matches.append(raw_name)
                     seen.add(name_lower)
@@ -157,20 +154,25 @@ def get_waiting_room():
             return jsonify({"queue": []})
 
         queue = []
-        for idx, row in enumerate(all_rows[1:], start=3):
+        # Header is row 1 (index 0). Data starts on row 2 (index 1).
+        for idx, row in enumerate(all_rows[1:], start=2):
             if not row or not any(row):
                 continue
             
             name = row[1].strip() if len(row) > 1 else ""
             placement_val = str(row[3]).strip() if len(row) > 3 else ""
             action_val = str(row[4]).strip() if len(row) > 4 else ""
+            routing_val = str(row[5]).strip() if len(row) > 5 else ""
             
             if name:
                 queue.append({
                     "row_index": idx,
+                    "Timestamp": row[0].strip() if len(row) > 0 else "",
                     "Name": name,
+                    "SessionDate": row[2].strip() if len(row) > 2 else "",
                     "Placement": placement_val,
-                    "Action": action_val
+                    "Action": action_val,
+                    "RoutingStatus": routing_val
                 })
         
         def parse_placement_sort(item):
@@ -200,15 +202,15 @@ def add_to_waiting_room():
         if not name:
             return jsonify({"error": "Name is required"}), 400
 
-        # Current timestamp calculations
         now = datetime.now()
-        timestamp_str = now.strftime("%m/%d/%Y %H:%M:%S")  # A: 09/16/2026 13:29:29
-        session_date_str = now.strftime("%m/%d/%Y")        # C: 9/16/2026 format
+        timestamp_str = now.strftime("%m/%d/%Y %H:%M:%S")
+        session_date_str = now.strftime("%m/%d/%Y")
 
         gc = get_sheets_client()
         spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
         ws = spreadsheet.worksheet("Waiting Room")
 
+        # Row Payload: A=Timestamp, B=Name, C=Session Date, D=Placement, E=Action, F=Routing Status
         row_payload = [
             timestamp_str,
             name,
@@ -238,21 +240,25 @@ def update_waiting_room():
         if not row_idx:
             return jsonify({"error": "Row index is required"}), 400
 
+        row_idx = int(row_idx)
+
+        # 1. Attempt to update via Apps Script endpoint
         success = trigger_apps_script(row_idx, action=action, placement=placement)
 
-        if success:
-            return jsonify({"status": "success"})
-        else:
+        # 2. Fallback direct write to Google Sheet if Apps Script fails or is unconfigured
+        if not success:
             gc = get_sheets_client()
             spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
             ws = spreadsheet.worksheet("Waiting Room")
             
             if placement is not None:
-                ws.update_cell(row_idx, 4, placement)
+                ws.update_cell(row_idx, 4, str(placement))
             if action is not None:
-                ws.update_cell(row_idx, 5, action)
+                ws.update_cell(row_idx, 5, str(action))
                 
             return jsonify({"status": "success", "note": "Updated via gspread direct write"})
+
+        return jsonify({"status": "success"})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
