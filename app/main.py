@@ -9,6 +9,9 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from authlib.integrations.flask_client import OAuth
 import gspread
 from google.oauth2.service_account import Credentials
+from datetime import datetime
+
+
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
@@ -189,20 +192,37 @@ def get_waiting_room():
 def add_to_waiting_room():
     try:
         data = request.json or {}
-        name = data.get("name")
-        placement = data.get("placement", "")
-        action = data.get("action", "Pending")
+        name = data.get("name", "").strip()
+        placement = str(data.get("placement", "")).strip()
+        action = data.get("action", "Pending").strip()
+        routing_status = data.get("routing_status", "Pending").strip()
 
         if not name:
             return jsonify({"error": "Name is required"}), 400
+
+        # Current timestamp calculations
+        now = datetime.now()
+        timestamp_str = now.strftime("%m/%d/%Y %H:%M:%S")  # A: 09/16/2026 13:29:29
+        session_date_str = now.strftime("%m/%d/%Y")        # C: 9/16/2026 format
 
         gc = get_sheets_client()
         spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
         ws = spreadsheet.worksheet("Waiting Room")
 
-        ws.append_row(["", name, "", placement, action])
-        return jsonify({"status": "success"})
+        row_payload = [
+            timestamp_str,
+            name,
+            session_date_str,
+            placement,
+            action,
+            routing_status
+        ]
+
+        ws.append_row(row_payload, value_input_option="USER_ENTERED")
+        return jsonify({"status": "success", "added_row": row_payload})
+
     except Exception as e:
+        print(f"Error adding to waiting room: {e}")
         return jsonify({"error": str(e)}), 500
 
 # Update existing Placement and Action values in Waiting Room
