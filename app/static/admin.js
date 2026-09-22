@@ -224,13 +224,13 @@ document.addEventListener('DOMContentLoaded', () => {
   
     const totalRows = new Set(
       [...queueTableBody.querySelectorAll(".row-checkbox")].map(cb => cb.value)
-    ).size;
+    );
   
-    if (masterCheckbox && totalRows > 0) {
-      if (count === totalRows) {
+    if (masterCheckbox && totalRows.size > 0) {
+      if (count === totalRows.size) {
         masterCheckbox.checked = true;
         masterCheckbox.indeterminate = false;
-      } else if (count > 0 && count < totalRows) {
+      } else if (count > 0 && count < totalRows.size) {
         masterCheckbox.checked = false;
         masterCheckbox.indeterminate = true;
       }
@@ -240,12 +240,13 @@ document.addEventListener('DOMContentLoaded', () => {
   async function autoSaveSingleParticipant(tr) {
     const rawRowIndex = tr.dataset.rowIndex;
     const rowIndex = parseInt(rawRowIndex, 10);
+    const clientName = tr.dataset.clientName || "";
     const placement = tr.querySelector(".placement-select").value;
     const action = tr.querySelector(".action-select").value;
 
-    if (isNaN(rowIndex)) {
-      console.error("Invalid row index for auto-save:", rawRowIndex);
-      showAlert("Error saving: Invalid Row", "#fee2e2", "#991b1b");
+    if (isNaN(rowIndex) && !clientName) {
+      console.error("Invalid row index or name for auto-save:", rawRowIndex, clientName);
+      showAlert("Error saving: Invalid Client Data", "#fee2e2", "#991b1b");
       return;
     }
 
@@ -260,7 +261,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const res = await fetch("/api/waiting-room/update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ row_index: rowIndex, placement, action })
+      body: JSON.stringify({ 
+        row_index: rowIndex, 
+        name: clientName, 
+        placement: placement, 
+        action: action 
+      })
     });
 
     if (res.ok) {
@@ -291,6 +297,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const tr = document.createElement("tr");
         tr.draggable = true;
         tr.dataset.rowIndex = row.row_index;
+        tr.dataset.clientName = row.Name || '';
 
         const currentAction = row.Action || 'Pending';
         const actionClass = 'action-' + currentAction.replace(/\s+/g, '-');
@@ -484,8 +491,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const mobPlacementLabel = tr.querySelector(".mob-place-label");
         const actionSelect = tr.querySelector(".action-select");
         const rowIndex = parseInt(tr.dataset.rowIndex, 10);
+        const clientName = tr.dataset.clientName || "";
         
-        if (placementSelect && placementSelect.value !== newPlacement && !isNaN(rowIndex)) {
+        if (placementSelect && placementSelect.value !== newPlacement && (!isNaN(rowIndex) || clientName)) {
           placementSelect.value = newPlacement;
           if (mobPlacementLabel) mobPlacementLabel.innerText = `${newPlacement}.`;
           
@@ -494,6 +502,7 @@ document.addEventListener('DOMContentLoaded', () => {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               row_index: rowIndex,
+              name: clientName,
               placement: newPlacement,
               action: actionSelect.value
             })
@@ -547,6 +556,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return {
           tr,
           row_index: parseInt(tr.dataset.rowIndex, 10),
+          name: tr.dataset.clientName || "",
           placement: tr.querySelector(".placement-select").value,
           action: actionVal
         };
@@ -563,6 +573,7 @@ document.addEventListener('DOMContentLoaded', () => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             row_index: item.row_index,
+            name: item.name,
             placement: item.placement,
             action: item.action
           })
@@ -578,27 +589,34 @@ document.addEventListener('DOMContentLoaded', () => {
   const deleteSelectedBtn = document.getElementById("deleteSelectedBtn");
   if (deleteSelectedBtn) {
     deleteSelectedBtn.addEventListener("click", async () => {
-      const selectedRowIndexes = [...new Set(
-        [...queueTableBody.querySelectorAll(".row-checkbox:checked")].map(cb => parseInt(cb.value, 10))
-      )];
-  
-      if (selectedRowIndexes.length === 0) return;
-  
-      if (!confirm(`Are you sure you want to delete ${selectedRowIndexes.length} client(s)?`)) return;
-  
-      showAlert(`Deleting ${selectedRowIndexes.length} row(s)...`, "#fee2e2", "#991b1b");
-  
-      for (let i = 0; i < selectedRowIndexes.length; i++) {
-        const rowIndex = selectedRowIndexes[i];
-  
+      const selectedClients = [...queueTableBody.querySelectorAll("td .row-checkbox:checked")].map(cb => {
+        const tr = cb.closest("tr");
+        return {
+          row_index: parseInt(tr.dataset.rowIndex, 10),
+          name: tr.dataset.clientName || ""
+        };
+      });
+
+      if (selectedClients.length === 0) return;
+
+      if (!confirm(`Are you sure you want to delete ${selectedClients.length} client(s)?`)) return;
+
+      showAlert(`Deleting ${selectedClients.length} row(s)...`, "#fee2e2", "#991b1b");
+
+      for (let i = 0; i < selectedClients.length; i++) {
+        const client = selectedClients[i];
+
         await fetch("/api/waiting-room/delete", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ row_index: rowIndex })
+          body: JSON.stringify({ 
+            row_index: client.row_index, 
+            name: client.name 
+          })
         });
         await new Promise(r => setTimeout(r, 100));
       }
-  
+
       await loadWaitingRoom();
       showAlert("Selected row(s) deleted successfully!", "#dcfce7", "#166534");
     });
@@ -628,9 +646,9 @@ document.addEventListener('DOMContentLoaded', () => {
   function autoSetNextPlacement(queueData) {
     const placementInput = document.getElementById("placementInput");
     if (!placementInput) return;
-  
+
     let maxPlacement = 0;
-    
+
     if (Array.isArray(queueData)) {
       queueData.forEach(item => {
         const val = parseInt(item.Placement, 10);
@@ -639,9 +657,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
     }
-  
+
     const nextPlacement = String(maxPlacement + 1);
-  
+
     if (placementInput.querySelector(`option[value="${nextPlacement}"]`)) {
       placementInput.value = nextPlacement;
     } else {
