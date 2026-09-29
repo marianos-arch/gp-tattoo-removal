@@ -1,7 +1,7 @@
 // Global toggle for mobile edit drawer
 window.toggleMobileDrawer = function(infoEl) {
   const tr = infoEl.closest('tr');
-  const drawer = tr.querySelector('.mobile-edit-drawer');
+  const drawer = tr ? tr.querySelector('.mobile-edit-drawer') : null;
   if (drawer) drawer.classList.toggle('open');
 };
 
@@ -185,6 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function applyActionColorClass(selectElement) {
+    if (!selectElement) return;
     selectElement.className = 'form-control form-control-sm action-select action-' + selectElement.value.replace(/\s+/g, '-');
   }
 
@@ -219,8 +220,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateBatchBarState() {
+    // Only query desktop checkboxes to avoid duplicating count
     const checkedRows = new Set(
-      [...queueTableBody.querySelectorAll(".row-checkbox:checked")].map(cb => cb.value)
+      [...queueTableBody.querySelectorAll("td .row-checkbox:checked")].map(cb => cb.value)
     );
     const count = checkedRows.size;
   
@@ -236,7 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   
     const totalRows = new Set(
-      [...queueTableBody.querySelectorAll(".row-checkbox")].map(cb => cb.value)
+      [...queueTableBody.querySelectorAll("td .row-checkbox")].map(cb => cb.value)
     );
   
     if (masterCheckbox && totalRows.size > 0) {
@@ -250,7 +252,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Replace autoSaveSingleParticipant with this updated version
   async function autoSaveSingleParticipant(tr) {
     const rawRowIndex = tr.dataset.rowIndex;
     const rowIndex = parseInt(rawRowIndex, 10);
@@ -286,10 +287,6 @@ document.addEventListener('DOMContentLoaded', () => {
   
       if (res.ok) {
         showAlert("Updated!", "#dcfce7", "#166534");
-        // Allow Apps Script reindex/flush to complete before refreshing UI
-        setTimeout(async () => {
-          await loadWaitingRoom();
-        }, 1000);
       } else {
         showAlert("Update failed", "#fee2e2", "#991b1b");
       }
@@ -557,9 +554,6 @@ document.addEventListener('DOMContentLoaded', () => {
   
         if (res.ok) {
           showAlert("Queue order saved!", "#dcfce7", "#166534");
-          setTimeout(async () => {
-            await loadWaitingRoom();
-          }, 1200);
         } else {
           showAlert("Failed to save new position", "#fee2e2", "#991b1b");
         }
@@ -618,7 +612,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       showAlert(`Updating ${selectedRows.length} rows...`, "#dbeafe", "#1e40af");
 
-      // Update inside applyBulkBtn listener in admin.js:
       for (let i = 0; i < selectedRows.length; i++) {
         const item = selectedRows[i];
         await fetch("/api/waiting-room/update", {
@@ -631,8 +624,7 @@ document.addEventListener('DOMContentLoaded', () => {
             action: item.action
           })
         });
-        // Pause 500ms between calls to avoid Apps Script lock contention
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 200));
       }
       showAlert("Selected status updated!", "#dcfce7", "#166534");
       await loadWaitingRoom();
@@ -712,12 +704,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const nextPlacement = String(maxPlacement + 1);
-
-    if (placementInput.querySelector(`option[value="${nextPlacement}"]`)) {
-      placementInput.value = nextPlacement;
-    } else {
-      placementInput.value = nextPlacement;
-    }
+    placementInput.value = nextPlacement;
   }
 
   // Initialize page data
