@@ -111,13 +111,14 @@
                 type="text" 
                 id="clientSearch" 
                 name="client_name" 
+                list="clientList" 
                 placeholder="Start typing client name..." 
                 autocomplete="off" 
                 required 
                 class="form-control"
               >
+              <datalist id="clientList"></datalist>
               <div id="autocompleteSpinner" class="autocomplete-spinner"></div>
-            </div>
             <div id="autocompleteDropdown" class="autocomplete-dropdown"></div>
           </div>
         </div>
