@@ -16,6 +16,13 @@ import time
 CLIENT_CACHE = {"names": [], "last_updated": 0}
 CACHE_TTL_SECONDS = 300  # Refresh roster every 5 minutes
 
+# Short-lived cache for the PUBLIC status data (protects Google Sheets API quota)
+PUBLIC_CACHE = {"data": None, "last_updated": 0}
+PUBLIC_CACHE_TTL_SECONDS = 15
+
+def invalidate_public_cache():
+    PUBLIC_CACHE["last_updated"] = 0
+
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key-change-me")
@@ -88,17 +95,38 @@ def index():
     return render_template("index.html")
 
 @app.route("/api/placements")
-@admin_required
 def get_placements():
+    """Public endpoint used by the live status page.
+    Returns only [placement, action] pairs -- NO client names -- as a JSON array,
+    which is the shape static/main.js expects."""
+    now = time.time()
+    if PUBLIC_CACHE["data"] is not None and (now - PUBLIC_CACHE["last_updated"]) < PUBLIC_CACHE_TTL_SECONDS:
+        return jsonify(PUBLIC_CACHE["data"])
+
     try:
         gc = get_sheets_client()
         spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
-        sheet = spreadsheet.worksheet("Waiting Room")
-        
-        records = sheet.get_all_records()
-        return jsonify({"placements": records, "spots_left": len(records)})
+        ws = spreadsheet.worksheet("Waiting Room")
+        all_rows = ws.get_all_values()
+
+        placements = []
+        for row in all_rows[1:]:  # row 1 is the header
+            name = row[1].strip() if len(row) > 1 else ""
+            if not name:  # same rule as the admin queue: a row needs a name
+                continue
+            placement = row[3].strip() if len(row) > 3 else ""
+            action = row[4].strip() if len(row) > 4 else ""
+            placements.append([placement, action or "Pending"])
+
+        PUBLIC_CACHE["data"] = placements
+        PUBLIC_CACHE["last_updated"] = now
+        return jsonify(placements)
     except Exception as e:
-        return jsonify({"error": str(e), "placements": [], "spots_left": 0}), 500
+        print(f"Public placements error: {e}")
+        # Serve slightly stale data rather than an error if we have any
+        if PUBLIC_CACHE["data"] is not None:
+            return jsonify(PUBLIC_CACHE["data"])
+        return jsonify({"error": "Unable to load placement data"}), 500
 
 def get_cached_client_names():
     now = time.time()
@@ -229,6 +257,7 @@ def add_to_waiting_room():
         ]
 
         ws.append_row(row_payload, value_input_option="USER_ENTERED")
+        invalidate_public_cache()
         return jsonify({"status": "success", "added_row": row_payload})
 
     except Exception as e:
@@ -277,8 +306,10 @@ def update_waiting_room():
             if placement is not None:
                 ws.update_cell(target_row, 4, str(placement))
                 
+            invalidate_public_cache()
             return jsonify({"status": "success", "note": "Updated via gspread direct write"})
 
+        invalidate_public_cache()
         return jsonify({"status": "success"})
 
     except Exception as e:
@@ -309,6 +340,7 @@ def delete_waiting_room_row():
             return jsonify({"error": "Client row not found for deletion"}), 404
 
         ws.delete_rows(target_row)
+        invalidate_public_cache()
         return jsonify({"status": "success"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
