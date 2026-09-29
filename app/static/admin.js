@@ -22,6 +22,37 @@ document.addEventListener('DOMContentLoaded', () => {
   
   let draggedRow = null;
   let cachedClients = [];
+  let alertTimer = null;
+
+  // Escape untrusted text (names/statuses from Google Sheets) before using innerHTML
+  function escapeHtml(value) {
+    return String(value === null || value === undefined ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  // fetch wrapper: detects an expired session (server redirects to login HTML)
+  // and non-JSON responses instead of failing with a confusing JSON parse error
+  async function apiFetch(url, options) {
+    const res = await fetch(url, options);
+
+    if (res.redirected && res.url.includes("/admin/login")) {
+      showAlert("Session expired. Redirecting to login...", "#fee2e2", "#991b1b");
+      setTimeout(() => { window.location.href = "/admin/login"; }, 1500);
+      const err = new Error("Session expired");
+      err.sessionExpired = true;
+      throw err;
+    }
+
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      throw new Error("Unexpected server response (HTTP " + res.status + ")");
+    }
+    return res;
+  }
 
   // Enable drop target for Desktop HTML5 Drag & Drop
   queueTableBody.addEventListener("dragover", (e) => {
@@ -43,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!clientList) return;
     
     try {
-      const res = await fetch('/api/clients/search?q=');
+      const res = await apiFetch('/api/clients/search?q=');
       if (!res.ok) {
         console.error("Failed to fetch clients list:", res.status);
         return;
@@ -123,7 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log(`[Search Input] Triggering fetch for: "${searchTerm}"`);
 
       try {
-        const res = await fetch(`/api/clients/search?q=${encodeURIComponent(searchTerm)}`);
+        const res = await apiFetch(`/api/clients/search?q=${encodeURIComponent(searchTerm)}`);
         if (!res.ok) {
           console.warn(`[Search Fetch] Request failed with HTTP ${res.status}`);
           return;
@@ -165,7 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       try {
-        const res = await fetch("/api/waiting-room/add", {
+        const res = await apiFetch("/api/waiting-room/add", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
@@ -181,7 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
           await loadWaitingRoom();
         } else {
           const errData = await res.json().catch(() => ({}));
-          showAlert(errData.message || "Failed to add client", "#fee2e2", "#991b1b");
+          showAlert(errData.error || errData.message || "Failed to add client", "#fee2e2", "#991b1b");
         }
       } catch (err) {
         console.error("Error submitting add client form:", err);
@@ -302,7 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   
     try {
-      const res = await fetch("/api/waiting-room/update", {
+      const res = await apiFetch("/api/waiting-room/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -326,8 +357,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadWaitingRoom() {
     try {
-      const res = await fetch("/api/waiting-room");
+      const res = await apiFetch("/api/waiting-room");
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load queue");
       
       autoSetNextPlacement(data.queue || []);
       
@@ -347,13 +379,13 @@ document.addEventListener('DOMContentLoaded', () => {
         tr.dataset.clientName = row.Name || '';
 
         const currentAction = row.Action || 'Pending';
-        const actionClass = 'action-' + currentAction.replace(/\s+/g, '-');
+        const actionClass = 'action-' + currentAction.replace(/\s+/g, '-').replace(/[^\w-]/g, '');
         const currentPlacement = row.Placement || '';
 
         tr.innerHTML = `
           <td class="drag-handle" style="cursor: grab;">⋮⋮</td>
           <td><input type="checkbox" class="row-checkbox" value="${row.row_index}"></td>
-          <td style="font-weight: 600; color: #0f172a;">${row.Name || ''}</td>
+          <td style="font-weight: 600; color: #0f172a;">${escapeHtml(row.Name)}</td>
           <td>
             <select class="form-control form-control-sm placement-select" style="min-width: 90px;">
               ${getPlacementOptionsHTML(currentPlacement)}
@@ -367,9 +399,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
           <div class="mobile-card-summary">
             <div class="mobile-card-info" onclick="toggleMobileDrawer(this)">
-              <span class="mobile-placement-tag mob-place-label">${currentPlacement ? currentPlacement + '.' : '-.'}</span>
-              <span>${row.Name || ''}</span>
-              <span class="mobile-status-tag mob-status-label ${actionClass}">${currentAction}</span>
+              <span class="mobile-placement-tag mob-place-label">${currentPlacement ? escapeHtml(currentPlacement) + '.' : '-.'}</span>
+              <span>${escapeHtml(row.Name)}</span>
+              <span class="mobile-status-tag mob-status-label ${actionClass}">${escapeHtml(currentAction)}</span>
             </div>
             <input type="checkbox" class="row-checkbox mobile-cb" value="${row.row_index}">
           </div>
@@ -451,6 +483,7 @@ document.addEventListener('DOMContentLoaded', () => {
       updateBatchBarState();
 
     } catch (err) {
+      console.error("Error loading waiting room:", err);
       queueTableBody.innerHTML = `<tr><td colspan="5" class="table-loading" style="color: #ef4444;">Failed to load queue.</td></tr>`;
     }
   }
@@ -458,8 +491,9 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadLogs() {
     if (!logsTableBody) return;
     try {
-      const res = await fetch("/api/logs");
+      const res = await apiFetch("/api/logs");
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load logs");
 
       if (!data.logs || data.logs.length === 0) {
         logsTableBody.innerHTML = `<tr><td colspan="6" class="table-loading">No activity log entries found.</td></tr>`;
@@ -468,21 +502,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
       logsTableBody.innerHTML = "";
       data.logs.forEach(row => {
-        const statusClass = 'action-' + String(row['Status'] || '').replace(/\s+/g, '-');
+        const statusClass = 'action-' + String(row['Status'] || '').replace(/\s+/g, '-').replace(/[^\w-]/g, '');
         const tr = document.createElement("tr");
         tr.innerHTML = `
-          <td>${row['Submission Time'] || '-'}</td>
-          <td style="font-weight: 600; color: #0f172a;">${row['Name'] || '-'}</td>
-          <td>${row['Tattoo Session Date'] || '-'}</td>
+          <td>${escapeHtml(row['Submission Time']) || '-'}</td>
+          <td style="font-weight: 600; color: #0f172a;">${escapeHtml(row['Name']) || '-'}</td>
+          <td>${escapeHtml(row['Tattoo Session Date']) || '-'}</td>
           <td>
-            <span class="mobile-status-tag ${statusClass}">${row['Status'] || '-'}</span>
+            <span class="mobile-status-tag ${statusClass}">${escapeHtml(row['Status']) || '-'}</span>
           </td>
-          <td style="color: #64748b; font-size: 0.85rem;">${row['Reviewed By'] || '-'}</td>
-          <td style="color: #64748b; font-size: 0.85rem;">${row['Reviewed At'] || '-'}</td>
+          <td style="color: #64748b; font-size: 0.85rem;">${escapeHtml(row['Reviewed By']) || '-'}</td>
+          <td style="color: #64748b; font-size: 0.85rem;">${escapeHtml(row['Reviewed At']) || '-'}</td>
         `;
         logsTableBody.appendChild(tr);
       });
     } catch (err) {
+      console.error("Error loading logs:", err);
       logsTableBody.innerHTML = `<tr><td colspan="6" class="table-loading" style="color: #ef4444;">Failed to load activity logs.</td></tr>`;
     }
   }
@@ -569,7 +604,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (mobPlacementLabel) mobPlacementLabel.innerText = `${newPlacement}.`;
   
       try {
-        const res = await fetch("/api/waiting-room/update", {
+        const res = await apiFetch("/api/waiting-room/update", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -640,22 +675,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
       showAlert(`Updating ${selectedRows.length} rows...`, "#dbeafe", "#1e40af");
 
-      for (let i = 0; i < selectedRows.length; i++) {
-        const item = selectedRows[i];
-        await fetch("/api/waiting-room/update", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            row_index: item.row_index,
-            name: item.name,
-            placement: item.placement,
-            action: item.action
-          })
-        });
-        await new Promise(r => setTimeout(r, 200));
+      let failed = 0;
+      try {
+        for (let i = 0; i < selectedRows.length; i++) {
+          const item = selectedRows[i];
+          const r = await apiFetch("/api/waiting-room/update", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              row_index: item.row_index,
+              name: item.name,
+              placement: item.placement,
+              action: item.action
+            })
+          });
+          if (!r.ok) failed++;
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      } catch (err) {
+        if (err.sessionExpired) return;
+        console.error("Bulk update error:", err);
+        showAlert("Bulk update interrupted. Reloading queue...", "#fee2e2", "#991b1b");
+        await loadWaitingRoom();
+        return;
       }
-      showAlert("Selected status updated!", "#dcfce7", "#166534");
+
       await loadWaitingRoom();
+      if (failed) {
+        showAlert(`${failed} of ${selectedRows.length} updates failed`, "#fee2e2", "#991b1b");
+      } else {
+        showAlert("Selected status updated!", "#dcfce7", "#166534");
+      }
     });
   }
 
@@ -672,26 +722,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (selectedClients.length === 0) return;
 
+      // Delete from the bottom of the sheet upward. Deleting a row shifts every row
+      // below it up by one, which would make the remaining row_index values wrong.
+      selectedClients.sort((a, b) => (b.row_index || 0) - (a.row_index || 0));
+
       if (!confirm(`Are you sure you want to delete ${selectedClients.length} client(s)?`)) return;
 
       showAlert(`Deleting ${selectedClients.length} row(s)...`, "#fee2e2", "#991b1b");
 
-      for (let i = 0; i < selectedClients.length; i++) {
-        const client = selectedClients[i];
+      let failed = 0;
+      try {
+        for (let i = 0; i < selectedClients.length; i++) {
+          const client = selectedClients[i];
 
-        await fetch("/api/waiting-room/delete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            row_index: client.row_index, 
-            name: client.name 
-          })
-        });
-        await new Promise(r => setTimeout(r, 100));
+          const r = await apiFetch("/api/waiting-room/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+              row_index: client.row_index, 
+              name: client.name 
+            })
+          });
+          if (!r.ok) failed++;
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      } catch (err) {
+        if (err.sessionExpired) return;
+        console.error("Bulk delete error:", err);
+        showAlert("Delete interrupted. Reloading queue...", "#fee2e2", "#991b1b");
+        await loadWaitingRoom();
+        return;
       }
 
       await loadWaitingRoom();
-      showAlert("Selected row(s) deleted successfully!", "#dcfce7", "#166534");
+      if (failed) {
+        showAlert(`${failed} of ${selectedClients.length} deletions failed`, "#fee2e2", "#991b1b");
+      } else {
+        showAlert("Selected row(s) deleted successfully!", "#dcfce7", "#166534");
+      }
     });
   }
 
@@ -713,7 +781,8 @@ document.addEventListener('DOMContentLoaded', () => {
     statusAlert.style.backgroundColor = bg;
     statusAlert.style.color = color;
     statusAlert.style.display = "block";
-    setTimeout(() => { statusAlert.style.display = "none"; }, 3500);
+    clearTimeout(alertTimer);
+    alertTimer = setTimeout(() => { statusAlert.style.display = "none"; }, 3500);
   }
 
   function autoSetNextPlacement(queueData) {
@@ -731,8 +800,8 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    const nextPlacement = String(maxPlacement + 1);
-    placementInput.value = nextPlacement;
+    const next = maxPlacement + 1;
+    placementInput.value = next <= 25 ? String(next) : "Overflow";
   }
 
   // Initialize page data
