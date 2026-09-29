@@ -10,6 +10,11 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from authlib.integrations.flask_client import OAuth
 import gspread
 from google.oauth2.service_account import Credentials
+import time
+
+# Simple in-memory cache for client roster
+CLIENT_CACHE = {"names": [], "last_updated": 0}
+CACHE_TTL_SECONDS = 300  # Refresh roster every 5 minutes
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
@@ -95,6 +100,29 @@ def get_placements():
     except Exception as e:
         return jsonify({"error": str(e), "placements": [], "spots_left": 0}), 500
 
+def get_cached_client_names():
+    now = time.time()
+    if not CLIENT_CACHE["names"] or (now - CLIENT_CACHE["last_updated"]) > CACHE_TTL_SECONDS:
+        try:
+            gc = get_sheets_client()
+            spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
+            ranges = [f"'{letter}'!A3:A" for letter in string.ascii_uppercase]
+            batch_response = spreadsheet.values_batch_get(ranges)
+            value_ranges = batch_response.get("valueRanges", [])
+
+            names_set = set()
+            for vr in value_ranges:
+                for row in vr.get("values", []):
+                    if row and row[0].strip():
+                        names_set.add(row[0].strip())
+
+            CLIENT_CACHE["names"] = sorted(list(names_set))
+            CLIENT_CACHE["last_updated"] = now
+        except Exception as e:
+            print(f"Error updating client cache: {e}")
+
+    return CLIENT_CACHE["names"]
+
 @app.route("/api/clients/search")
 @admin_required
 def search_clients():
@@ -107,43 +135,22 @@ def search_clients():
         return jsonify({"results": []})
 
     try:
-        gc = get_sheets_client()
-        spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
-
-        ranges = [f"'{letter}'!A3:A" for letter in string.ascii_uppercase]
-        batch_response = spreadsheet.values_batch_get(ranges)
-        value_ranges = batch_response.get("valueRanges", [])
-
+        all_names = get_cached_client_names()
         matches = []
-        seen = set()
 
-        for vr in value_ranges:
-            rows = vr.get("values", [])
-            for row in rows:
-                if not row:
-                    continue
-                
-                raw_name = row[0].strip()
-                if not raw_name or raw_name.lower() in seen:
-                    continue
-
-                name_lower = raw_name.lower()
-                
-                if all(part in name_lower for part in query_parts):
-                    matches.append(raw_name)
-                    seen.add(name_lower)
-
+        for raw_name in all_names:
+            name_lower = raw_name.lower()
+            if all(part in name_lower for part in query_parts):
+                matches.append(raw_name)
                 if len(matches) >= 15:
                     break
-
-            if len(matches) >= 15:
-                break
 
         return jsonify({"results": matches})
 
     except Exception as e:
         print(f"Search API Error: {e}")
         return jsonify({"error": str(e), "results": []}), 500
+
 
 @app.route("/api/waiting-room", methods=["GET"])
 @admin_required
