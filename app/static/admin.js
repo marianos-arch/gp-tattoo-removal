@@ -89,39 +89,49 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
-  // Dynamic live search with 3-character threshold + debouncing
+  // Dynamic live search with fallback to cached options + debounced fetch
   if (clientSearchInput) {
     console.log("✅ clientSearchInput element bound successfully:", clientSearchInput);
     console.log("✅ clientList datalist element check:", clientList);
-  
-    clientSearchInput.addEventListener("input", debounce(async function(e) {
+
+    // Show initial cached list when input field gains focus
+    clientSearchInput.addEventListener("focus", () => {
+      if (cachedClients.length > 0 && (!clientList.children || clientList.children.length === 0)) {
+        updateDatalist(cachedClients);
+      }
+    });
+
+    clientSearchInput.addEventListener("input", function(e) {
       if (e.inputType === "insertReplacementText" || e.inputType === "insertFromText") return;
-  
-      const searchTerm = this.value.trim();
-      console.log(`[Search Input] Term: "${searchTerm}" (Length: ${searchTerm.length})`);
-  
+
+      const searchTerm = this.value.trim().toLowerCase();
+
+      // Show instant filter from preloaded cache if search term is less than 3 chars
       if (searchTerm.length < 3) {
-        console.log("[Search Input] Search suppressed: Under 3 characters.");
+        if (cachedClients.length > 0) {
+          const filtered = cachedClients.filter(name => name.toLowerCase().includes(searchTerm));
+          updateDatalist(filtered);
+        }
         return;
       }
-  
-      console.log(`[Search Input] Triggering fetch to: /api/clients/search?q=${encodeURIComponent(searchTerm)}`);
-  
+
+      // Execute debounced backend search for 3+ characters
+      debouncedSearch(searchTerm);
+    });
+
+    const debouncedSearch = debounce(async (searchTerm) => {
+      console.log(`[Search Input] Triggering fetch for: "${searchTerm}"`);
+
       try {
         const res = await fetch(`/api/clients/search?q=${encodeURIComponent(searchTerm)}`);
-        console.log(`[Search Fetch] HTTP Status: ${res.status}`);
-  
         if (!res.ok) {
           console.warn(`[Search Fetch] Request failed with HTTP ${res.status}`);
           return;
         }
-  
+
         const data = await res.json();
-        console.log("[Search Fetch] Raw API Data Received:", data);
-  
         const rawClients = Array.isArray(data) ? data : (data.results || data.clients || data.data || []);
-        console.log("[Search Fetch] Extracted Array:", rawClients);
-  
+
         const results = rawClients.map(item => {
           if (typeof item === 'string') return item;
           if (typeof item === 'object' && item !== null) {
@@ -129,19 +139,16 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           return '';
         }).filter(Boolean);
-  
-        console.log("[Search Fetch] Final Formatted Names:", results);
-  
+
         updateDatalist(results);
         console.log(`[Datalist Update] Added ${results.length} options to datalist element.`);
       } catch (err) {
         console.error("[Search Fetch] Network/Parse Error:", err);
       }
-    }, 300));
+    }, 300);
   } else {
     console.error("❌ clientSearchInput element NOT found in DOM. Check HTML ID!");
   }
-
 
   // Handle 'Add Client' Form Submission
   if (addClientForm) {
