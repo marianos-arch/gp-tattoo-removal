@@ -91,25 +91,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Dynamic live search with 3-character threshold + debouncing
   if (clientSearchInput) {
+    console.log("✅ clientSearchInput element bound successfully:", clientSearchInput);
+    console.log("✅ clientList datalist element check:", clientList);
+  
     clientSearchInput.addEventListener("input", debounce(async function(e) {
-      // If user selected an option from datalist, skip re-fetching
       if (e.inputType === "insertReplacementText" || e.inputType === "insertFromText") return;
-
+  
       const searchTerm = this.value.trim();
-
-      if (searchTerm.length < 3) return;
-
+      console.log(`[Search Input] Term: "${searchTerm}" (Length: ${searchTerm.length})`);
+  
+      if (searchTerm.length < 3) {
+        console.log("[Search Input] Search suppressed: Under 3 characters.");
+        return;
+      }
+  
+      console.log(`[Search Input] Triggering fetch to: /api/clients/search?q=${encodeURIComponent(searchTerm)}`);
+  
       try {
         const res = await fetch(`/api/clients/search?q=${encodeURIComponent(searchTerm)}`);
-        
+        console.log(`[Search Fetch] HTTP Status: ${res.status}`);
+  
         if (!res.ok) {
-          console.warn(`Client search returned status ${res.status}`);
+          console.warn(`[Search Fetch] Request failed with HTTP ${res.status}`);
           return;
         }
-
+  
         const data = await res.json();
-        const rawClients = Array.isArray(data) ? data : (data.results || data.clients || []);
-
+        console.log("[Search Fetch] Raw API Data Received:", data);
+  
+        const rawClients = Array.isArray(data) ? data : (data.results || data.clients || data.data || []);
+        console.log("[Search Fetch] Extracted Array:", rawClients);
+  
         const results = rawClients.map(item => {
           if (typeof item === 'string') return item;
           if (typeof item === 'object' && item !== null) {
@@ -117,43 +129,19 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           return '';
         }).filter(Boolean);
-
+  
+        console.log("[Search Fetch] Final Formatted Names:", results);
+  
         updateDatalist(results);
+        console.log(`[Datalist Update] Added ${results.length} options to datalist element.`);
       } catch (err) {
-        console.error("Dynamic client search network error:", err);
+        console.error("[Search Fetch] Network/Parse Error:", err);
       }
     }, 300));
-
-    // Autocomplete Handler: Selection via click or Enter key from datalist
-    clientSearchInput.addEventListener("change", function () {
-      const selectedValue = this.value.trim();
-      if (!selectedValue || !clientList) return;
-
-      // Verify selected value exists in datalist options
-      const options = Array.from(clientList.options).map(opt => opt.value);
-      if (options.includes(selectedValue)) {
-        this.value = selectedValue;
-        // Optionally focus placement input after client selection
-        const placementInput = document.getElementById("placementInput");
-        if (placementInput) placementInput.focus();
-      }
-    });
-
-    // Autocomplete Handler: Keydown support for Enter / Tab selection
-    clientSearchInput.addEventListener("keydown", function (e) {
-      if (e.key === "Enter") {
-        const val = this.value.trim();
-        if (val && clientList) {
-          const matchedOption = Array.from(clientList.options).find(
-            opt => opt.value.toLowerCase() === val.toLowerCase()
-          );
-          if (matchedOption) {
-            this.value = matchedOption.value;
-          }
-        }
-      }
-    });
+  } else {
+    console.error("❌ clientSearchInput element NOT found in DOM. Check HTML ID!");
   }
+
 
   // Handle 'Add Client' Form Submission
   if (addClientForm) {
