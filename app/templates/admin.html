@@ -6,6 +6,78 @@
 <!-- Page-Specific Admin Stylesheet -->
 <link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">
 
+<style>
+  /* Custom Autocomplete Component Styling */
+  .autocomplete-container {
+    position: relative;
+    width: 100%;
+  }
+
+  .autocomplete-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .autocomplete-spinner {
+    position: absolute;
+    right: 12px;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #cbd5e1;
+    border-top-color: #2563eb;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    display: none;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .autocomplete-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    max-height: 240px;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none;
+    padding: 4px 0;
+  }
+
+  .autocomplete-item {
+    padding: 10px 14px;
+    font-size: 0.95rem;
+    color: #1e293b;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+
+  .autocomplete-item:hover,
+  .autocomplete-item.active {
+    background-color: #f1f5f9;
+    color: #2563eb;
+  }
+
+  .autocomplete-no-results,
+  .autocomplete-error {
+    padding: 10px 14px;
+    font-size: 0.9rem;
+    color: #64748b;
+    font-style: italic;
+  }
+
+  .autocomplete-error {
+    color: #dc2626;
+  }
+</style>
+
 <section class="admin-wrapper">
   <div class="admin-layout-single">
 
@@ -29,19 +101,25 @@
     <section class="card form-card">
       <h3>Add Client to Waiting Room</h3>
       <form id="addClientForm" class="form-grid">
+        
+        <!-- Enhanced Autocomplete Form Group -->
         <div class="form-group flex-grow-2">
           <label for="clientSearch">Client Name</label>
-          <input 
-            type="text" 
-            id="clientSearch" 
-            name="client_name" 
-            list="clientList" 
-            placeholder="Start typing client name..." 
-            autocomplete="off" 
-            required 
-            class="form-control"
-          >
-          <datalist id="clientList"></datalist>
+          <div class="autocomplete-container">
+            <div class="autocomplete-input-wrapper">
+              <input 
+                type="text" 
+                id="clientSearch" 
+                name="client_name" 
+                placeholder="Start typing client name..." 
+                autocomplete="off" 
+                required 
+                class="form-control"
+              >
+              <div id="autocompleteSpinner" class="autocomplete-spinner"></div>
+            </div>
+            <div id="autocompleteDropdown" class="autocomplete-dropdown"></div>
+          </div>
         </div>
 
         <div class="form-group">
