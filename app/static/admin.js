@@ -24,6 +24,17 @@ document.addEventListener('DOMContentLoaded', () => {
   let cachedClients = [];
   let alertTimer = null;
 
+  // Consistency-layer state (see "Consistency layer" below)
+  const REFRESH_AFTER_SAVE_MS = 1500;  // wait for the sheet/Apps Script to finish re-sorting or removing rows
+  const AUTO_REFRESH_MS = 30000;       // background sync with the sheet
+  let opChain = Promise.resolve();     // saves run one at a time, in order
+  let pendingOps = 0;                  // saves / bulk jobs queued or running
+  let refreshTimer = null;
+  let refreshForce = false;
+  let loadSeq = 0;                     // lets a newer queue load supersede an older one
+  let lastQueueSignature = null;       // skip re-rendering when nothing changed
+  let placementTouched = false;        // don't overwrite a placement the admin picked by hand
+
   // Escape untrusted text before using innerHTML
   function escapeHtml(value) {
     return String(value === null || value === undefined ? "" : value)
@@ -55,8 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Enable drop target for Desktop HTML5 Drag & Drop
   queueTableBody.addEventListener("dragover", (e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
+    e.preventDefault(); // Prevents the red 'not-allowed' circle symbol
+    e.dataTransfer.dropEffect = "move"; // Shows the move cursor
 
     if (!draggedRow) return;
 
@@ -80,6 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }  
   
       const data = await res.json();
+      
       const rawClients = Array.isArray(data) ? data : (data.results || data.clients || data.data || []);
       
       cachedClients = rawClients.map(item => {
@@ -109,7 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
     clientList.appendChild(fragment);
   }
 
-  // Debounce helper to prevent flooding backend on keypress
+  // Debounce helper to prevent flooding the backend on every keypress
   function debounce(func, delay = 300) {
     let timer;
     return function (...args) {
@@ -120,6 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Dynamic live search with fallback to cached options + debounced fetch
   if (clientSearchInput) {
+    // Show initial cached list when input field gains focus
     clientSearchInput.addEventListener("focus", () => {
       if (cachedClients.length > 0 && (!clientList.children || clientList.children.length === 0)) {
         updateDatalist(cachedClients);
@@ -131,6 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const searchTerm = this.value.trim().toLowerCase();
 
+      // Show instant filter from preloaded cache if search term is less than 3 chars
       if (searchTerm.length < 3) {
         if (cachedClients.length > 0) {
           const filtered = cachedClients.filter(name => name.toLowerCase().includes(searchTerm));
@@ -139,13 +153,17 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      // Execute debounced backend search for 3+ characters
       debouncedSearch(searchTerm);
     });
 
     const debouncedSearch = debounce(async (searchTerm) => {
       try {
         const res = await apiFetch(`/api/clients/search?q=${encodeURIComponent(searchTerm)}`);
-        if (!res.ok) return;
+        if (!res.ok) {
+          console.warn(`[Search Fetch] Request failed with HTTP ${res.status}`);
+          return;
+        }
 
         const data = await res.json();
         const rawClients = Array.isArray(data) ? data : (data.results || data.clients || data.data || []);
@@ -193,7 +211,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (res.ok) {
           showAlert("Client added to waiting room!", "#dcfce7", "#166534");
           addClientForm.reset();
-          await loadWaitingRoom();
+          placementTouched = false;
+          await loadWaitingRoom({ force: true });
         } else {
           const errData = await res.json().catch(() => ({}));
           showAlert(errData.error || errData.message || "Failed to add client", "#fee2e2", "#991b1b");
@@ -263,6 +282,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateBatchBarState() {
+    // Only query desktop checkboxes to avoid duplicating count
     const checkedRows = new Set(
       [...queueTableBody.querySelectorAll("td .row-checkbox:checked")].map(cb => cb.value)
     );
@@ -294,7 +314,94 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  async function autoSaveSingleParticipant(tr) {
+  // ---------------------------------------------------------------------------
+  // Consistency layer
+  // The sheet can re-sort / re-index / remove rows when a status or placement
+  // changes (and admins can edit the sheet directly), so a row_index captured
+  // when the table was drawn can go stale. To keep every change tied to the
+  // right PERSON we:
+  //   1. run saves one at a time, in order
+  //   2. re-look-up the person's current row by NAME right before writing
+  //   3. reload the queue after saving so the page matches the sheet
+  // ---------------------------------------------------------------------------
+  function normalizeName(value) {
+    return String(value || "").trim().toLowerCase();
+  }
+
+  function enqueue(job) {
+    pendingOps++;
+    const result = opChain.then(() => job());
+    opChain = result.catch(() => {}).then(() => { pendingOps--; });
+    return result;
+  }
+
+  async function fetchQueue() {
+    const res = await apiFetch("/api/waiting-room");
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to load queue");
+    return data.queue || [];
+  }
+
+  // Find a client's CURRENT sheet row by name (using the remembered row as a tie-breaker)
+  async function resolveRowIndex(name, hintIndex) {
+    const queue = await fetchQueue();
+    const target = normalizeName(name);
+    const matches = queue.filter(r => normalizeName(r.Name) === target);
+
+    if (matches.length === 0) return { status: "missing" };
+
+    const exact = matches.find(r => r.row_index === hintIndex);
+    if (exact) return { status: "ok", row_index: exact.row_index };
+    if (matches.length === 1) return { status: "ok", row_index: matches[0].row_index };
+
+    return { status: "ambiguous" };
+  }
+
+  async function persistUpdate({ name, rowIndex, placement, action }) {
+    let targetRow = rowIndex;
+
+    if (name) {
+      const found = await resolveRowIndex(name, rowIndex);
+      if (found.status !== "ok") return { ok: false, reason: found.status };
+      targetRow = found.row_index;
+    }
+
+    const res = await apiFetch("/api/waiting-room/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        row_index: targetRow,
+        name: name,
+        placement: placement,
+        action: action
+      })
+    });
+
+    return res.ok ? { ok: true } : { ok: false, reason: "http" };
+  }
+
+  function describeFailure(reason) {
+    if (reason === "missing") return "That client is no longer in the queue. Refreshing...";
+    if (reason === "ambiguous") return "More than one client has that name, so nothing was saved. Edit it in the sheet.";
+    return "Update failed";
+  }
+
+  function scheduleRefresh(delay = REFRESH_AFTER_SAVE_MS, force = false) {
+    refreshForce = refreshForce || force;
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(async () => {
+      // Never rebuild the table while saves are running or a row is being dragged
+      if (pendingOps > 0 || draggedRow) {
+        scheduleRefresh(500);
+        return;
+      }
+      const forceNow = refreshForce;
+      refreshForce = false;
+      await loadWaitingRoom({ force: forceNow });
+    }, delay);
+  }
+
+  function autoSaveSingleParticipant(tr) {
     const rawRowIndex = tr.dataset.rowIndex;
     const rowIndex = parseInt(rawRowIndex, 10);
     const clientName = tr.dataset.clientName || "";
@@ -302,8 +409,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const action = tr.querySelector(".action-select").value;
   
     if (isNaN(rowIndex) && !clientName) {
+      console.error("Invalid row index or name for auto-save:", rawRowIndex, clientName);
       showAlert("Error saving: Invalid Client Data", "#fee2e2", "#991b1b");
       return;
+    }
+
+    // Release focus from the dropdown so background sync isn't blocked by it
+    if (document.activeElement && document.activeElement.tagName === "SELECT") {
+      document.activeElement.blur();
     }
   
     const mobPlacement = tr.querySelector(".mob-place-label");
@@ -314,45 +427,61 @@ document.addEventListener('DOMContentLoaded', () => {
       mobAction.className = 'mobile-status-tag action-' + action.replace(/\s+/g, '-');
     }
   
-    try {
-      const res = await apiFetch("/api/waiting-room/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          row_index: rowIndex, 
-          name: clientName, 
-          placement: placement, 
-          action: action 
-        })
-      });
-  
-      if (res.ok) {
-        showAlert("Updated!", "#dcfce7", "#166534");
-      } else {
-        showAlert("Update failed", "#fee2e2", "#991b1b");
+    return enqueue(async () => {
+      try {
+        const result = await persistUpdate({ name: clientName, rowIndex, placement, action });
+        if (result.ok) {
+          showAlert("Updated!", "#dcfce7", "#166534");
+          scheduleRefresh();               // pick up any re-sort / removal done by the sheet
+        } else {
+          showAlert(describeFailure(result.reason), "#fee2e2", "#991b1b");
+          scheduleRefresh(300, true);      // put the screen back in line with the sheet
+        }
+      } catch (err) {
+        if (err.sessionExpired) return;
+        console.error("Auto-save error:", err);
+        showAlert("Network error during save", "#fee2e2", "#991b1b");
+        scheduleRefresh(300, true);
       }
-    } catch (err) {
-      console.error("Auto-save error:", err);
-      showAlert("Network error during save", "#fee2e2", "#991b1b");
-    }
+    });
   }
 
-  async function loadWaitingRoom() {
+  async function loadWaitingRoom({ force = false } = {}) {
+    const seq = ++loadSeq;
     try {
       const res = await apiFetch("/api/waiting-room");
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load queue");
-      
-      autoSetNextPlacement(data.queue || []);
-      
+      if (seq !== loadSeq) return; // a newer load has superseded this one
+
+      const queue = data.queue || [];
+      autoSetNextPlacement(queue);
+
+      const sortedQueue = sortQueueData(queue);
+
+      // Nothing changed since the last draw -> leave the table alone (keeps dropdowns/selection intact)
+      const signature = sortedQueue
+        .map(r => [r.row_index, r.Name, r.Placement, r.Action].join("|"))
+        .join("\n");
+      if (!force && signature === lastQueueSignature) return;
+      lastQueueSignature = signature;
+
+      // Remember UI state (by client name) so a refresh doesn't wipe it
+      const selectedNames = new Set();
+      const openDrawerNames = new Set();
+      queueTableBody.querySelectorAll("tr[data-client-name]").forEach(existing => {
+        const cb = existing.querySelector("td .row-checkbox");
+        if (cb && cb.checked) selectedNames.add(existing.dataset.clientName);
+        const drawer = existing.querySelector(".mobile-edit-drawer");
+        if (drawer && drawer.classList.contains("open")) openDrawerNames.add(existing.dataset.clientName);
+      });
+
       queueTableBody.innerHTML = "";
-      if (!data.queue || data.queue.length === 0) {
+      if (sortedQueue.length === 0) {
         queueTableBody.innerHTML = `<tr><td colspan="5" class="table-loading">No clients currently in waiting room.</td></tr>`;
         updateBatchBarState();
         return;
       }
-
-      const sortedQueue = sortQueueData(data.queue);
 
       sortedQueue.forEach((row) => {
         const tr = document.createElement("tr");
@@ -444,12 +573,21 @@ document.addEventListener('DOMContentLoaded', () => {
           updateBatchBarState();
         });
 
+        // Restore selection / open drawer from before the refresh
+        if (selectedNames.has(row.Name || '')) {
+          desktopCb.checked = true;
+          mobileCb.checked = true;
+        }
+        if (openDrawerNames.has(row.Name || '')) {
+          tr.querySelector('.mobile-edit-drawer').classList.add('open');
+        }
+
         // Desktop HTML5 drag event handlers
         tr.addEventListener("dragstart", (e) => {
           draggedRow = tr;
           tr.classList.add("dragging");
           e.dataTransfer.effectAllowed = "move";
-          e.dataTransfer.setData("text/plain", "");
+          e.dataTransfer.setData("text/plain", ""); // Required by Firefox to initiate dragging
         });
 
         tr.addEventListener("dragend", async () => {
@@ -463,10 +601,19 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       updateBatchBarState();
+      applyTableFilter();
 
     } catch (err) {
+      if (seq !== loadSeq) return;
       console.error("Error loading waiting room:", err);
-      queueTableBody.innerHTML = `<tr><td colspan="5" class="table-loading" style="color: #ef4444;">Failed to load queue.</td></tr>`;
+
+      if (queueTableBody.querySelector("tr[data-client-name]")) {
+        // Keep showing the last good data instead of wiping the table on a hiccup
+        showAlert("Couldn't refresh the queue. Showing last known data.", "#fee2e2", "#991b1b");
+      } else {
+        lastQueueSignature = null;
+        queueTableBody.innerHTML = `<tr><td colspan="5" class="table-loading" style="color: #ef4444;">Failed to load queue.</td></tr>`;
+      }
     }
   }
 
@@ -555,6 +702,7 @@ document.addEventListener('DOMContentLoaded', () => {
   
     let newPlacement = String(newIndex + 1);
   
+    // If dragged to top
     if (newIndex === 0) {
       newPlacement = "1";
     } else {
@@ -562,6 +710,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const aboveValStr = rowAbove ? (rowAbove.querySelector(".placement-select")?.value || "").toUpperCase() : "";
   
       if (aboveValStr.startsWith("P")) {
+        // If dropped directly below a Priority row, default to position 1
         newPlacement = "1";
       } else {
         const aboveVal = parseInt(aboveValStr, 10);
@@ -579,31 +728,31 @@ document.addEventListener('DOMContentLoaded', () => {
     const clientName = draggedRow.dataset.clientName || "";
   
     if (placementSelect && placementSelect.value !== newPlacement) {
+      const action = actionSelect ? actionSelect.value : "Pending";
       placementSelect.value = newPlacement;
       if (mobPlacementSelect) mobPlacementSelect.value = newPlacement;
       if (mobPlacementLabel) mobPlacementLabel.innerText = `${newPlacement}.`;
   
-      try {
-        const res = await apiFetch("/api/waiting-room/update", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            row_index: rowIndex,
-            name: clientName,
-            placement: newPlacement,
-            action: actionSelect ? actionSelect.value : "Pending"
-          })
-        });
-  
-        if (res.ok) {
-          showAlert("Queue order saved!", "#dcfce7", "#166534");
-        } else {
-          showAlert("Failed to save new position", "#fee2e2", "#991b1b");
+      await enqueue(async () => {
+        try {
+          const result = await persistUpdate({ name: clientName, rowIndex, placement: newPlacement, action });
+          if (result.ok) {
+            showAlert("Queue order saved!", "#dcfce7", "#166534");
+            scheduleRefresh();
+          } else {
+            showAlert(describeFailure(result.reason), "#fee2e2", "#991b1b");
+            scheduleRefresh(300, true);
+          }
+        } catch (err) {
+          if (err.sessionExpired) return;
+          console.error("Failed to update dragged row position:", err);
+          showAlert("Network error saving new position", "#fee2e2", "#991b1b");
+          scheduleRefresh(300, true);
         }
-      } catch (err) {
-        console.error("Failed to update dragged row position:", err);
-        showAlert("Network error saving new position", "#fee2e2", "#991b1b");
-      }
+      });
+    } else {
+      // Dropped somewhere that doesn't change its placement: snap back to the sheet's order
+      scheduleRefresh(200, true);
     }
   }
   
@@ -636,14 +785,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const applyBulkBtn = document.getElementById("applyBulkActionBtn");
   if (applyBulkBtn) {
-    applyBulkBtn.addEventListener("click", async () => {
+    applyBulkBtn.addEventListener("click", () => {
       const actionVal = document.getElementById("bulkActionSelect").value;
       if (!actionVal) return alert("Please select a status action.");
 
       const selectedRows = [...queueTableBody.querySelectorAll("td .row-checkbox:checked")].map(cb => {
         const tr = cb.closest("tr");
         return {
-          tr,
           row_index: parseInt(tr.dataset.rowIndex, 10),
           name: tr.dataset.clientName || "",
           placement: tr.querySelector(".placement-select").value,
@@ -655,43 +803,49 @@ document.addEventListener('DOMContentLoaded', () => {
 
       showAlert(`Updating ${selectedRows.length} rows...`, "#dbeafe", "#1e40af");
 
-      let failed = 0;
-      try {
-        for (let i = 0; i < selectedRows.length; i++) {
-          const item = selectedRows[i];
-          const r = await apiFetch("/api/waiting-room/update", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              row_index: item.row_index,
+      enqueue(async () => {
+        let failed = 0;
+        let gone = 0;
+        try {
+          for (const item of selectedRows) {
+            // Each item is looked up by name at the moment it is saved, because
+            // the previous item's change may already have re-sorted/removed rows.
+            const result = await persistUpdate({
               name: item.name,
+              rowIndex: item.row_index,
               placement: item.placement,
               action: item.action
-            })
-          });
-          if (!r.ok) failed++;
-          await new Promise(resolve => setTimeout(resolve, 200));
+            });
+            if (!result.ok) {
+              if (result.reason === "missing") gone++;
+              else failed++;
+            }
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+        } catch (err) {
+          if (err.sessionExpired) return;
+          console.error("Bulk update error:", err);
+          showAlert("Bulk update interrupted. Reloading queue...", "#fee2e2", "#991b1b");
+          scheduleRefresh(300, true);
+          return;
         }
-      } catch (err) {
-        if (err.sessionExpired) return;
-        console.error("Bulk update error:", err);
-        showAlert("Bulk update interrupted. Reloading queue...", "#fee2e2", "#991b1b");
-        await loadWaitingRoom();
-        return;
-      }
 
-      await loadWaitingRoom();
-      if (failed) {
-        showAlert(`${failed} of ${selectedRows.length} updates failed`, "#fee2e2", "#991b1b");
-      } else {
-        showAlert("Selected status updated!", "#dcfce7", "#166534");
-      }
+        scheduleRefresh(REFRESH_AFTER_SAVE_MS, true);
+        if (failed || gone) {
+          const parts = [];
+          if (failed) parts.push(`${failed} failed`);
+          if (gone) parts.push(`${gone} no longer in the queue`);
+          showAlert(`Bulk update finished: ${parts.join(", ")}`, "#fee2e2", "#991b1b");
+        } else {
+          showAlert("Selected status updated!", "#dcfce7", "#166534");
+        }
+      });
     });
   }
 
   const deleteSelectedBtn = document.getElementById("deleteSelectedBtn");
   if (deleteSelectedBtn) {
-    deleteSelectedBtn.addEventListener("click", async () => {
+    deleteSelectedBtn.addEventListener("click", () => {
       const selectedClients = [...queueTableBody.querySelectorAll("td .row-checkbox:checked")].map(cb => {
         const tr = cb.closest("tr");
         return {
@@ -708,50 +862,71 @@ document.addEventListener('DOMContentLoaded', () => {
 
       showAlert(`Deleting ${selectedClients.length} row(s)...`, "#fee2e2", "#991b1b");
 
-      let failed = 0;
-      try {
-        for (let i = 0; i < selectedClients.length; i++) {
-          const client = selectedClients[i];
+      enqueue(async () => {
+        let failed = 0;
+        try {
+          for (const client of selectedClients) {
+            let targetRow = client.row_index;
 
-          const r = await apiFetch("/api/waiting-room/delete", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
-              row_index: client.row_index, 
-              name: client.name 
-            })
-          });
-          if (!r.ok) failed++;
-          await new Promise(resolve => setTimeout(resolve, 100));
+            // Look the person up by name right now, so a shifted sheet can't make us delete someone else
+            if (client.name) {
+              const found = await resolveRowIndex(client.name, client.row_index);
+              if (found.status === "missing") continue;   // already gone
+              if (found.status === "ambiguous") { failed++; continue; }
+              targetRow = found.row_index;
+            }
+
+            const res = await apiFetch("/api/waiting-room/delete", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ 
+                row_index: targetRow, 
+                name: client.name 
+              })
+            });
+            if (!res.ok) failed++;
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        } catch (err) {
+          if (err.sessionExpired) return;
+          console.error("Bulk delete error:", err);
+          showAlert("Delete interrupted. Reloading queue...", "#fee2e2", "#991b1b");
+          scheduleRefresh(300, true);
+          return;
         }
-      } catch (err) {
-        if (err.sessionExpired) return;
-        console.error("Bulk delete error:", err);
-        showAlert("Delete interrupted. Reloading queue...", "#fee2e2", "#991b1b");
-        await loadWaitingRoom();
-        return;
-      }
 
-      await loadWaitingRoom();
-      if (failed) {
-        showAlert(`${failed} of ${selectedClients.length} deletions failed`, "#fee2e2", "#991b1b");
-      } else {
-        showAlert("Selected row(s) deleted successfully!", "#dcfce7", "#166534");
-      }
+        scheduleRefresh(300, true);
+        if (failed) {
+          showAlert(`${failed} of ${selectedClients.length} deletions failed (duplicate names must be removed in the sheet)`, "#fee2e2", "#991b1b");
+        } else {
+          showAlert("Selected row(s) deleted successfully!", "#dcfce7", "#166534");
+        }
+      });
     });
   }
 
   const tableSearch = document.getElementById("tableSearch");
-  if (tableSearch) {
-    tableSearch.addEventListener("input", function() {
-      const term = this.value.toLowerCase();
-      const rows = queueTableBody.querySelectorAll("tr");
-      rows.forEach(tr => {
-        const text = tr.innerText.toLowerCase();
-        tr.style.display = text.includes(term) ? "" : "none";
-      });
+
+  // Filter on the row's real values (name, placement, status). The old version used
+  // innerText, which also matched the hidden <option> labels, so e.g. "rejected"
+  // matched every row.
+  function applyTableFilter() {
+    if (!tableSearch) return;
+    const term = tableSearch.value.toLowerCase().trim();
+    queueTableBody.querySelectorAll("tr").forEach(tr => {
+      let text;
+      if (tr.dataset.clientName !== undefined) {
+        const place = tr.querySelector(".placement-select");
+        const act = tr.querySelector(".action-select");
+        text = [tr.dataset.clientName, place ? place.value : "", act ? act.value : ""].join(" ").toLowerCase();
+      } else {
+        text = tr.innerText.toLowerCase(); // loading / empty-state rows
+      }
+      tr.style.display = text.includes(term) ? "" : "none";
     });
   }
+
+  if (tableSearch) tableSearch.addEventListener("input", applyTableFilter);
 
   function showAlert(msg, bg, color) {
     if (!statusAlert) return;
@@ -766,6 +941,9 @@ document.addEventListener('DOMContentLoaded', () => {
   function autoSetNextPlacement(queueData) {
     const placementInput = document.getElementById("placementInput");
     if (!placementInput) return;
+
+    // Don't overwrite a placement the admin picked by hand while a refresh happens
+    if (placementTouched) return;
 
     let maxPlacement = 0;
 
@@ -782,8 +960,26 @@ document.addEventListener('DOMContentLoaded', () => {
     placementInput.value = next <= 25 ? String(next) : "Overflow";
   }
 
+  const placementInputEl = document.getElementById("placementInput");
+  if (placementInputEl) {
+    // 'change' only fires for user edits, not for the programmatic default above
+    placementInputEl.addEventListener("change", () => { placementTouched = true; });
+  }
+
+  // Background sync: pick up changes made in the Google Sheet or by another admin
+  setInterval(() => {
+    if (document.hidden) return;
+    if (pendingOps > 0 || draggedRow) return;
+
+    const active = document.activeElement;
+    if (active && active.tagName === "SELECT" && queueTableBody.contains(active)) return; // don't close an open dropdown
+
+    loadWaitingRoom();
+    loadLogs();
+  }, AUTO_REFRESH_MS);
+
   // Initialize page data
   preloadClientCache();
-  loadWaitingRoom();
+  loadWaitingRoom({ force: true });
   loadLogs();
 });
