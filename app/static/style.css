@@ -710,45 +710,64 @@ footer {
 }
 
 /* ==========================================================
-   MOBILE LAYOUT FIX (<= 768px)
+   1. DESKTOP ONLY LAYOUT (> 768px)
+   ========================================================== */
+@media (min-width: 769px) {
+  /* Default State (Edit Mode OFF): Hide headers and cells for drag & checkbox */
+  #queueTable:not(.edit-mode) th.drag-col,
+  #queueTable:not(.edit-mode) th.select-col,
+  #queueTable:not(.edit-mode) td.drag-handle,
+  #queueTable:not(.edit-mode) td.select-col,
+  #queueTable:not(.edit-mode) td:nth-child(1),
+  #queueTable:not(.edit-mode) td:nth-child(2) {
+    display: none !important;
+  }
+
+  /* Edit Mode Active (Edit Mode ON): Reveal headers and cells as table cells */
+  #queueTable.edit-mode th.drag-col,
+  #queueTable.edit-mode th.select-col,
+  #queueTable.edit-mode td.drag-handle,
+  #queueTable.edit-mode td.select-col,
+  #queueTable.edit-mode td:nth-child(1),
+  #queueTable.edit-mode td:nth-child(2) {
+    display: table-cell !important;
+  }
+
+  /* Always hide mobile drawers on desktop screens */
+  #queueTable .mobile-card-summary,
+  #queueTable .mobile-edit-drawer {
+    display: none !important;
+  }
+}
+
+/* ==========================================================
+   2. MOBILE ONLY LAYOUT (<= 768px)
    ========================================================== */
 @media (max-width: 768px) {
-
-  /* 1. Hide Desktop Drag Handle Column completely on Mobile */
-  #queueTable .drag-col,
-  #queueTable td.drag-handle,
-  #queueTable td:first-child {
+  /* Permanently hide desktop header columns */
+  #queueTable thead {
     display: none !important;
   }
 
-  /* 2. Hide Desktop Checkbox Column on Mobile */
-  #queueTable td:nth-child(2) {
-    display: none !important;
-  }
-
-  /* 3. Hide all remaining Desktop table cells on Mobile except the drawer column */
+  /* Permanently hide all standard desktop table cells */
   #queueTable tbody tr td:not(:last-child) {
     display: none !important;
   }
 
-  /* 4. Ensure the Mobile Card Container takes up the full width */
+  /* Force the last cell (holding mobile summary & drawer) to take full width */
   #queueTable tbody tr td:last-child {
     display: block !important;
     width: 100% !important;
-    padding: 12px;
+    padding: 10px;
   }
 
-  /* ==========================================
-     MOBILE EDIT MODE CHECKBOX TOGGLE
-     ========================================== */
-
-  /* Default State (Edit Mode OFF): Hide Mobile Checkbox */
+  /* Default State (Edit Mode OFF): Hide mobile checkboxes */
   #queueTable:not(.edit-mode) .mobile-cb,
   #queueTable:not(.edit-mode) .mobile-card-summary .row-checkbox {
     display: none !important;
   }
 
-  /* Edit Mode Active: Show Mobile Checkbox */
+  /* Edit Mode Active: Show mobile checkboxes */
   #queueTable.edit-mode .mobile-cb,
   #queueTable.edit-mode .mobile-card-summary .row-checkbox {
     display: inline-block !important;
