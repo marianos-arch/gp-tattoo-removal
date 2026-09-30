@@ -710,53 +710,47 @@ footer {
 }
 
 /* ==========================================================
-   EDIT MODE TOGGLE FIX FOR QUEUE TABLE
-   ========================================================== */
-
-/* 1. Default State (Edit Mode OFF): Force Hide Header & Cell Columns */
-#queueTable:not(.edit-mode) .drag-col,
-#queueTable:not(.edit-mode) .select-col,
-#queueTable:not(.edit-mode) td.drag-handle,
-#queueTable:not(.edit-mode) td:nth-child(1),
-#queueTable:not(.edit-mode) td:nth-child(2) {
-  display: none !important;
-}
-
-/* 2. Edit Mode ON: Show Header & Cell Columns as standard table cells */
-#queueTable.edit-mode .drag-col,
-#queueTable.edit-mode .select-col,
-#queueTable.edit-mode td.drag-handle,
-#queueTable.edit-mode td:nth-child(1),
-#queueTable.edit-mode td:nth-child(2) {
-  display: table-cell !important;
-}
-
-/* ==========================================================
-   MOBILE EDIT MODE ADJUSTMENTS (<= 768px)
+   MOBILE LAYOUT FIX (<= 768px)
    ========================================================== */
 @media (max-width: 768px) {
-  /* 1. Always hide the drag handles on mobile */
-  .modern-table .drag-col,
-  .modern-table td.drag-handle,
-  .modern-table td:nth-child(1) {
+
+  /* 1. Hide Desktop Drag Handle Column completely on Mobile */
+  #queueTable .drag-col,
+  #queueTable td.drag-handle,
+  #queueTable td:first-child {
     display: none !important;
   }
 
-  /* 2. Default State (Edit Mode OFF): Hide checkboxes on mobile */
-  #queueTable:not(.edit-mode) .select-col,
-  #queueTable:not(.edit-mode) .checkbox-custom,
-  #queueTable:not(.edit-mode) .row-checkbox,
+  /* 2. Hide Desktop Checkbox Column on Mobile */
+  #queueTable td:nth-child(2) {
+    display: none !important;
+  }
+
+  /* 3. Hide all remaining Desktop table cells on Mobile except the drawer column */
+  #queueTable tbody tr td:not(:last-child) {
+    display: none !important;
+  }
+
+  /* 4. Ensure the Mobile Card Container takes up the full width */
+  #queueTable tbody tr td:last-child {
+    display: block !important;
+    width: 100% !important;
+    padding: 12px;
+  }
+
+  /* ==========================================
+     MOBILE EDIT MODE CHECKBOX TOGGLE
+     ========================================== */
+
+  /* Default State (Edit Mode OFF): Hide Mobile Checkbox */
   #queueTable:not(.edit-mode) .mobile-cb,
-  #queueTable:not(.edit-mode) td:nth-child(2) {
+  #queueTable:not(.edit-mode) .mobile-card-summary .row-checkbox {
     display: none !important;
   }
 
-  /* 3. Edit Mode Active (When hitting Edit): Show checkboxes on mobile */
-  #queueTable.edit-mode .select-col,
-  #queueTable.edit-mode .checkbox-custom,
-  #queueTable.edit-mode .row-checkbox,
+  /* Edit Mode Active: Show Mobile Checkbox */
   #queueTable.edit-mode .mobile-cb,
-  #queueTable.edit-mode td:nth-child(2) {
+  #queueTable.edit-mode .mobile-card-summary .row-checkbox {
     display: inline-block !important;
   }
 }
