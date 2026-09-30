@@ -23,6 +23,53 @@ PUBLIC_CACHE_TTL_SECONDS = 15
 def invalidate_public_cache():
     PUBLIC_CACHE["last_updated"] = 0
 
+# "Waiting Room" has two header rows; data starts on row 3 (same as the Apps Script,
+# which ignores anything above row 3). Change this if your layout ever changes.
+WAITING_ROOM_FIRST_DATA_ROW = 3
+
+# Stay under gunicorn's default 30s worker timeout. The Apps Script can legitimately
+# take 5+ seconds (it sleeps between steps) and up to 45s if it has to wait for its lock.
+APPS_SCRIPT_TIMEOUT_SECONDS = 25
+
+def normalize_name(value):
+    return str(value or "").strip().lower()
+
+def parse_row_index(value):
+    """Return a usable sheet row number, or None. Anything above the first data row is a header."""
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        return None
+    return n if n >= WAITING_ROOM_FIRST_DATA_ROW else None
+
+def find_waiting_room_row(ws, row_idx, name):
+    """Locate a client's CURRENT row. The NAME is the identity; row_idx is only a hint,
+    because the sheet re-sorts and deletes rows whenever a status/placement changes.
+
+    Returns (row_number, None) on success, or (None, (message, http_status))."""
+    hint = parse_row_index(row_idx)
+    target = normalize_name(name)
+
+    if not target:
+        # Nothing to verify against; fall back to trusting the row number
+        if hint:
+            return hint, None
+        return None, ("Client row could not be located", 404)
+
+    names_col = ws.col_values(2)  # index 0 == row 1
+    matches = [
+        row_no for row_no, value in enumerate(names_col, start=1)
+        if row_no >= WAITING_ROOM_FIRST_DATA_ROW and normalize_name(value) == target
+    ]
+
+    if not matches:
+        return None, ("Client is no longer in the waiting room", 404)
+    if hint in matches:
+        return hint, None
+    if len(matches) == 1:
+        return matches[0], None
+    return None, ("More than one client has this name; edit it in the sheet", 409)
+
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key-change-me")
@@ -53,11 +100,18 @@ def get_sheets_client():
     return gspread.authorize(creds)
 
 def trigger_apps_script(row_index, name=None, action=None, placement=None):
-    """Sends payload including Client Name to Apps Script to preserve identity across reindexes."""
+    """Sends payload including Client Name to Apps Script to preserve identity across reindexes.
+
+    Returns one of:
+      "success"      - the script ran and reported success
+      "unconfigured" - APPS_SCRIPT_URL is not set
+      "error"        - the script could not be reached or reported a failure
+      "timeout"      - we stopped waiting; the script MAY still be running or have finished
+    """
     url = os.environ.get("APPS_SCRIPT_URL")
     if not url:
         print("Warning: APPS_SCRIPT_URL environment variable is not set.")
-        return False
+        return "unconfigured"
 
     payload = {
         "sheetName": "Waiting Room",
@@ -68,18 +122,23 @@ def trigger_apps_script(row_index, name=None, action=None, placement=None):
     }
 
     try:
-        response = requests.post(url, json=payload, timeout=15, allow_redirects=True)
+        response = requests.post(url, json=payload, timeout=APPS_SCRIPT_TIMEOUT_SECONDS, allow_redirects=True)
         if response.ok:
             res_data = response.json()
             if res_data.get("status") == "success":
-                return True
-            else:
-                print(f"Apps Script Error Response: {res_data.get('message') or res_data.get('error')}")
-                return False
-        return False
+                return "success"
+            print(f"Apps Script Error Response: {res_data.get('message') or res_data.get('error')}")
+            return "error"
+        return "error"
+    except requests.exceptions.ConnectTimeout:
+        print("Apps Script connect timeout (request was never delivered)")
+        return "error"
+    except requests.exceptions.Timeout:
+        print("Apps Script read timeout (outcome unknown)")
+        return "timeout"
     except Exception as e:
         print(f"Failed to call Apps Script: {e}")
-        return False
+        return "error"
 
 def admin_required(f):
     @wraps(f)
@@ -110,7 +169,7 @@ def get_placements():
         all_rows = ws.get_all_values()
 
         placements = []
-        for row in all_rows[1:]:  # row 1 is the header
+        for row in all_rows[WAITING_ROOM_FIRST_DATA_ROW - 1:]:  # rows 1-2 are headers
             name = row[1].strip() if len(row) > 1 else ""
             if not name:  # same rule as the admin queue: a row needs a name
                 continue
@@ -189,11 +248,11 @@ def get_waiting_room():
         ws = spreadsheet.worksheet("Waiting Room")
         
         all_rows = ws.get_all_values()
-        if len(all_rows) < 2:
+        if len(all_rows) < WAITING_ROOM_FIRST_DATA_ROW:
             return jsonify({"queue": []})
 
         queue = []
-        for idx, row in enumerate(all_rows[1:], start=2):
+        for idx, row in enumerate(all_rows[WAITING_ROOM_FIRST_DATA_ROW - 1:], start=WAITING_ROOM_FIRST_DATA_ROW):
             if not row or not any(row):
                 continue
             
@@ -274,43 +333,63 @@ def update_waiting_room():
         action = data.get("action")
         placement = data.get("placement")
         
-        if not row_idx and not name:
+        if not parse_row_index(row_idx) and not normalize_name(name):
             return jsonify({"error": "Row index or name is required"}), 400
 
-        # 1. Attempt update via Apps Script passing Name + Row Index
-        success = trigger_apps_script(row_idx, name=name, action=action, placement=placement)
+        gc = get_sheets_client()
+        spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
+        ws = spreadsheet.worksheet("Waiting Room")
 
-        # 2. Fallback direct write to Google Sheet if Apps Script fails or is unconfigured
-        if not success:
-            gc = get_sheets_client()
-            spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
-            ws = spreadsheet.worksheet("Waiting Room")
-            
-            target_row = int(row_idx) if row_idx and str(row_idx).isdigit() else None
-            
-            # Find client row dynamically by Name if row index isn't directly valid
-            if not target_row and name:
-                names_col = ws.col_values(2)
-                name_clean = str(name).strip().lower()
-                for i, col_val in enumerate(names_col[1:], start=2):
-                    if str(col_val).strip().lower() == name_clean:
-                        target_row = i
-                        break
+        # Identity check: find this client's CURRENT row by name. The row number the
+        # browser sent may be stale because the sheet re-sorts / deletes rows on every change.
+        target_row, err = find_waiting_room_row(ws, row_idx, name)
+        if err:
+            return jsonify({"error": err[0]}), err[1]
 
-            if not target_row:
-                return jsonify({"error": "Client row could not be located"}), 404
-            
-            # Write Action FIRST, then Placement
-            if action is not None:
-                ws.update_cell(target_row, 5, str(action))
-            if placement is not None:
-                ws.update_cell(target_row, 4, str(placement))
-                
+        # 1. Preferred path: the Apps Script (runs routing, logging and re-indexing)
+        outcome = trigger_apps_script(target_row, name=name, action=action, placement=placement)
+
+        if outcome == "success":
             invalidate_public_cache()
-            return jsonify({"status": "success", "note": "Updated via gspread direct write"})
+            return jsonify({"status": "success"})
+
+        # 2. We gave up waiting, but the script may still be running or may have finished.
+        #    Look before writing anything, so nothing is ever applied twice or to the wrong row.
+        if outcome == "timeout":
+            time.sleep(2)
+            if normalize_name(name):
+                current_row, err = find_waiting_room_row(ws, None, name)
+                if err and err[1] == 404:
+                    # Row is gone: the script finished (removal is how Successful/Rejected/No-Show end)
+                    invalidate_public_cache()
+                    return jsonify({"status": "success", "note": "Processed by the sheet automation"})
+                if not err:
+                    current_action = str(ws.cell(current_row, 5).value or "").strip()
+                    if action is not None and current_action == str(action).strip():
+                        invalidate_public_cache()
+                        return jsonify({"status": "success", "note": "Processed by the sheet automation"})
+            return jsonify({
+                "error": "The sheet is still processing this change. Refresh in a moment to see the result."
+            }), 504
+
+        # 3. Script unavailable / reported an error: direct write as a fallback.
+        #    NOTE: API writes do not fire the sheet's edit trigger, so routing, logging and
+        #    re-indexing do NOT run on this path.
+        target_row, err = find_waiting_room_row(ws, target_row, name)  # re-verify, rows may have moved
+        if err:
+            return jsonify({"error": err[0]}), err[1]
+
+        # Write Action FIRST, then Placement
+        if action is not None:
+            ws.update_cell(target_row, 5, str(action))
+        if placement is not None:
+            ws.update_cell(target_row, 4, str(placement))
 
         invalidate_public_cache()
-        return jsonify({"status": "success"})
+        return jsonify({
+            "status": "success",
+            "note": "Updated via direct write; sheet automation (routing/re-indexing) did not run"
+        })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -327,17 +406,10 @@ def delete_waiting_room_row():
         spreadsheet = gc.open_by_key(os.environ.get("SPREADSHEET_ID"))
         ws = spreadsheet.worksheet("Waiting Room")
 
-        target_row = int(row_idx) if row_idx and str(row_idx).isdigit() else None
-        if not target_row and name:
-            names_col = ws.col_values(2)
-            name_clean = str(name).strip().lower()
-            for i, col_val in enumerate(names_col[1:], start=2):
-                if str(col_val).strip().lower() == name_clean:
-                    target_row = i
-                    break
-
-        if not target_row:
-            return jsonify({"error": "Client row not found for deletion"}), 404
+        # Never delete by a remembered row number alone: confirm it is still this person
+        target_row, err = find_waiting_room_row(ws, row_idx, name)
+        if err:
+            return jsonify({"error": err[0]}), err[1]
 
         ws.delete_rows(target_row)
         invalidate_public_cache()
