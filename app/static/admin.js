@@ -377,13 +377,16 @@ document.addEventListener('DOMContentLoaded', () => {
       })
     });
 
-    return res.ok ? { ok: true } : { ok: false, reason: "http" };
+    if (res.ok) return { ok: true };
+    const errBody = await res.json().catch(() => ({}));
+    return { ok: false, reason: "http", message: errBody.error || "" };
   }
 
-  function describeFailure(reason) {
+  function describeFailure(result) {
+    const reason = result && result.reason;
     if (reason === "missing") return "That client is no longer in the queue. Refreshing...";
     if (reason === "ambiguous") return "More than one client has that name, so nothing was saved. Edit it in the sheet.";
-    return "Update failed";
+    return (result && result.message) || "Update failed";
   }
 
   function scheduleRefresh(delay = REFRESH_AFTER_SAVE_MS, force = false) {
@@ -434,7 +437,7 @@ document.addEventListener('DOMContentLoaded', () => {
           showAlert("Updated!", "#dcfce7", "#166534");
           scheduleRefresh();               // pick up any re-sort / removal done by the sheet
         } else {
-          showAlert(describeFailure(result.reason), "#fee2e2", "#991b1b");
+          showAlert(describeFailure(result), "#fee2e2", "#991b1b");
           scheduleRefresh(300, true);      // put the screen back in line with the sheet
         }
       } catch (err) {
@@ -740,7 +743,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showAlert("Queue order saved!", "#dcfce7", "#166534");
             scheduleRefresh();
           } else {
-            showAlert(describeFailure(result.reason), "#fee2e2", "#991b1b");
+            showAlert(describeFailure(result), "#fee2e2", "#991b1b");
             scheduleRefresh(300, true);
           }
         } catch (err) {
