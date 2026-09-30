@@ -104,6 +104,7 @@ def trigger_apps_script(row_index, name=None, action=None, placement=None):
 
     Returns one of:
       "success"      - the script ran and reported success
+      "busy"         - the script is mid-way through another change; nothing was applied
       "unconfigured" - APPS_SCRIPT_URL is not set
       "error"        - the script could not be reached or reported a failure
       "timeout"      - we stopped waiting; the script MAY still be running or have finished
@@ -127,6 +128,8 @@ def trigger_apps_script(row_index, name=None, action=None, placement=None):
             res_data = response.json()
             if res_data.get("status") == "success":
                 return "success"
+            if res_data.get("status") == "busy":
+                return "busy"
             print(f"Apps Script Error Response: {res_data.get('message') or res_data.get('error')}")
             return "error"
         return "error"
@@ -353,7 +356,14 @@ def update_waiting_room():
             invalidate_public_cache()
             return jsonify({"status": "success"})
 
-        # 2. We gave up waiting, but the script may still be running or may have finished.
+        # 2a. The script is busy with another change and applied nothing. Do NOT write around
+        #     it (a direct write would skip routing/logging); ask the admin to retry.
+        if outcome == "busy":
+            return jsonify({
+                "error": "The sheet is busy processing another change. Please try again in a moment."
+            }), 503
+
+        # 2b. We gave up waiting, but the script may still be running or may have finished.
         #    Look before writing anything, so nothing is ever applied twice or to the wrong row.
         if outcome == "timeout":
             time.sleep(2)
