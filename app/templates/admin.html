@@ -7,74 +7,25 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">
 
 <style>
-  /* Custom Autocomplete Component Styling */
-  .autocomplete-container {
-    position: relative;
-    width: 100%;
-  }
+  /* Mobile fixes (admin.css hides every <td> at <=768px for the card layout) */
+  @media (max-width: 768px) {
+    /* Keep queue empty/loading/error messages visible */
+    #queueTableBody td.table-loading {
+      display: block;
+    }
 
-  .autocomplete-input-wrapper {
-    position: relative;
-    display: flex;
-    align-items: center;
-  }
-
-  .autocomplete-spinner {
-    position: absolute;
-    right: 12px;
-    width: 16px;
-    height: 16px;
-    border: 2px solid #cbd5e1;
-    border-top-color: #2563eb;
-    border-radius: 50%;
-    animation: spin 0.6s linear infinite;
-    display: none;
-  }
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-
-  .autocomplete-dropdown {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    right: 0;
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    max-height: 240px;
-    overflow-y: auto;
-    z-index: 1000;
-    display: none;
-    padding: 4px 0;
-  }
-
-  .autocomplete-item {
-    padding: 10px 14px;
-    font-size: 0.95rem;
-    color: #1e293b;
-    cursor: pointer;
-    transition: background-color 0.15s ease, color 0.15s ease;
-  }
-
-  .autocomplete-item:hover,
-  .autocomplete-item.active {
-    background-color: #f1f5f9;
-    color: #2563eb;
-  }
-
-  .autocomplete-no-results,
-  .autocomplete-error {
-    padding: 10px 14px;
-    font-size: 0.9rem;
-    color: #64748b;
-    font-style: italic;
-  }
-
-  .autocomplete-error {
-    color: #dc2626;
+    /* Activity Logs has no card layout, so keep it a normal scrollable table */
+    #logsTableContainer .modern-table { display: table; min-width: 640px; }
+    #logsTableContainer .modern-table thead { display: table-header-group; }
+    #logsTableContainer .modern-table tbody { display: table-row-group; }
+    #logsTableContainer .modern-table tr {
+      display: table-row;
+      margin: 0;
+      border: 0;
+      border-radius: 0;
+    }
+    #logsTableContainer .modern-table th,
+    #logsTableContainer .modern-table td { display: table-cell; }
   }
 </style>
 
@@ -84,7 +35,7 @@
     <!-- Main Content Header -->
     <div class="main-header">
       <div>
-        <h2>Waiting Room Queue & Intake</h2>
+        <h2>Waiting Room Queue &amp; Intake</h2>
         <p class="subheading">Manage live queue, placements, and client status</p>
       </div>
 
@@ -105,22 +56,17 @@
         <!-- Enhanced Autocomplete Form Group -->
         <div class="form-group flex-grow-2">
           <label for="clientSearch">Client Name</label>
-          <div class="autocomplete-container">
-            <div class="autocomplete-input-wrapper">
-              <input 
-                type="text" 
-                id="clientSearch" 
-                name="client_name" 
-                list="clientList" 
-                placeholder="Start typing client name..." 
-                autocomplete="off" 
-                required 
-                class="form-control"
-              >
-              <datalist id="clientList"></datalist>
-              <div id="autocompleteSpinner" class="autocomplete-spinner"></div>
-            <div id="autocompleteDropdown" class="autocomplete-dropdown"></div>
-          </div>
+          <input 
+            type="text" 
+            id="clientSearch" 
+            name="client_name" 
+            list="clientList" 
+            placeholder="Start typing client name..." 
+            autocomplete="off" 
+            required 
+            class="form-control"
+          >
+          <datalist id="clientList"></datalist>
         </div>
 
         <div class="form-group">
@@ -271,7 +217,7 @@
 <script>
   // Hash route redirect fallback
   if (window.location.hash === '#status') {
-    window.location.href = '/status';
+    window.location.href = '/#status';
   }
 
   function toggleActivityLogs() {
