@@ -708,3 +708,25 @@ footer {
     gap: 32px;
   }
 }
+
+/* ==========================================================
+   EDIT MODE TOGGLE FIX FOR QUEUE TABLE
+   ========================================================== */
+
+/* 1. Default State (Edit Mode OFF): Force Hide Header & Cell Columns */
+#queueTable:not(.edit-mode) .drag-col,
+#queueTable:not(.edit-mode) .select-col,
+#queueTable:not(.edit-mode) td.drag-handle,
+#queueTable:not(.edit-mode) td:nth-child(1),
+#queueTable:not(.edit-mode) td:nth-child(2) {
+  display: none !important;
+}
+
+/* 2. Edit Mode ON: Show Header & Cell Columns as standard table cells */
+#queueTable.edit-mode .drag-col,
+#queueTable.edit-mode .select-col,
+#queueTable.edit-mode td.drag-handle,
+#queueTable.edit-mode td:nth-child(1),
+#queueTable.edit-mode td:nth-child(2) {
+  display: table-cell !important;
+}
