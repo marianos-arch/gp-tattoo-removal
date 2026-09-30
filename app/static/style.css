@@ -135,6 +135,25 @@ body {
   width: 100%;
 }
 
+/* Hide selection checkboxes and drag handles by default until Edit Mode is active */
+.modern-table .select-col,
+.modern-table .drag-col {
+  display: none;
+}
+
+  /* Show selection checkboxes and drag handles when edit mode is toggled on */
+.modern-table.edit-mode .select-col,
+.modern-table.edit-mode .drag-col {
+  display: table-cell;
+}
+
+  /* Style for active state of the Edit toggle button */
+.btn-edit-toggle.active {
+  background-color: #e2e8f0;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
 /* Refined Hero Styles */
 .hero {
   padding: 32px 0;
