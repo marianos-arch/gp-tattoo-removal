@@ -56,17 +56,21 @@
         <!-- Enhanced Autocomplete Form Group -->
         <div class="form-group flex-grow-2">
           <label for="clientSearch">Client Name</label>
-          <input 
-            type="text" 
-            id="clientSearch" 
-            name="client_name" 
-            list="clientList" 
-            placeholder="Start typing client name..." 
-            autocomplete="off" 
-            required 
-            class="form-control"
-          >
-          <datalist id="clientList"></datalist>
+          <div class="autocomplete-container">
+            <div class="autocomplete-input-wrapper">
+              <input 
+                type="text" 
+                id="clientSearch" 
+                name="client_name" 
+                placeholder="Start typing client name..." 
+                autocomplete="off" 
+                required 
+                class="form-control"
+              >
+              <div id="autocompleteSpinner" class="autocomplete-spinner"></div>
+            </div>
+            <div id="autocompleteDropdown" class="autocomplete-dropdown"></div>
+          </div>
         </div>
 
         <div class="form-group">
@@ -106,12 +110,16 @@
       </form>
     </section>
 
-    <!-- Clean Search Toolbar -->
-    <section class="toolbar-card">
-      <div class="search-group">
+    <!-- Clean Search Toolbar with Edit Button -->
+    <section class="toolbar-card" style="display: flex; gap: 10px; align-items: center;">
+      <div class="search-group" style="flex: 1;">
         <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
         <input type="text" id="tableSearch" placeholder="Filter queue by name, placement, or status..." class="form-control form-control-sm search-input">
       </div>
+      <!-- Edit Mode Toggle Button -->
+      <button type="button" id="toggleEditBtn" class="btn btn-secondary btn-sm btn-edit-toggle">
+         Edit
+      </button>
     </section>
 
     <!-- Status Alert Banner -->
@@ -123,8 +131,8 @@
         <table id="queueTable" class="modern-table">
           <thead>
             <tr>
-              <th style="width: 36px;">::</th>
-              <th style="width: 40px;"><input type="checkbox" id="masterCheckbox" class="checkbox-custom"></th>
+              <th class="drag-col" style="width: 36px;">::</th>
+              <th class="select-col" style="width: 40px;"><input type="checkbox" id="masterCheckbox" class="checkbox-custom"></th>
               <th>Name</th>
               <th>Placement</th>
               <th>Action Status</th>
@@ -215,6 +223,20 @@
 </div>
 
 <script>
+  // Toggle Edit Mode Logic
+  document.addEventListener("DOMContentLoaded", function () {
+    const toggleEditBtn = document.getElementById("toggleEditBtn");
+    const queueTable = document.getElementById("queueTable");
+
+    if (toggleEditBtn && queueTable) {
+      toggleEditBtn.addEventListener("click", function () {
+        const isEditing = queueTable.classList.toggle("edit-mode");
+        toggleEditBtn.classList.toggle("active", isEditing);
+        toggleEditBtn.innerHTML = isEditing ? "✕ Done" : " Edit";
+      });
+    }
+  });
+
   // Hash route redirect fallback
   if (window.location.hash === '#status') {
     window.location.href = '/#status';
