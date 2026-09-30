@@ -1,4 +1,4 @@
-// Global toggle for mobile edit drawer
+// Global toggle for mobile edit drawer (MUST be outside DOMContentLoaded for inline onclick handlers)
 window.toggleMobileDrawer = function(infoEl) {
   const tr = infoEl.closest('tr');
   const drawer = tr ? tr.querySelector('.mobile-edit-drawer') : null;
@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let cachedClients = [];
   let alertTimer = null;
 
-  // Escape untrusted text (names/statuses from Google Sheets) before using innerHTML
+  // Escape untrusted text before using innerHTML
   function escapeHtml(value) {
     return String(value === null || value === undefined ? "" : value)
       .replace(/&/g, "&amp;")
@@ -34,8 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
       .replace(/'/g, "&#39;");
   }
 
-  // fetch wrapper: detects an expired session (server redirects to login HTML)
-  // and non-JSON responses instead of failing with a confusing JSON parse error
+  // fetch wrapper: detects expired sessions and non-JSON responses
   async function apiFetch(url, options) {
     const res = await fetch(url, options);
 
@@ -56,8 +55,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Enable drop target for Desktop HTML5 Drag & Drop
   queueTableBody.addEventListener("dragover", (e) => {
-    e.preventDefault(); // Prevents the red 'not-allowed' circle symbol
-    e.dataTransfer.dropEffect = "move"; // Shows the move cursor
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
 
     if (!draggedRow) return;
 
@@ -81,7 +80,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }  
   
       const data = await res.json();
-      
       const rawClients = Array.isArray(data) ? data : (data.results || data.clients || data.data || []);
       
       cachedClients = rawClients.map(item => {
@@ -111,7 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
     clientList.appendChild(fragment);
   }
 
-  // Debounce helper to prevent flooding the backend on every keypress
+  // Debounce helper to prevent flooding backend on keypress
   function debounce(func, delay = 300) {
     let timer;
     return function (...args) {
@@ -122,10 +120,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Dynamic live search with fallback to cached options + debounced fetch
   if (clientSearchInput) {
-    console.log("✅ clientSearchInput element bound successfully:", clientSearchInput);
-    console.log("✅ clientList datalist element check:", clientList);
-
-    // Show initial cached list when input field gains focus
     clientSearchInput.addEventListener("focus", () => {
       if (cachedClients.length > 0 && (!clientList.children || clientList.children.length === 0)) {
         updateDatalist(cachedClients);
@@ -137,7 +131,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const searchTerm = this.value.trim().toLowerCase();
 
-      // Show instant filter from preloaded cache if search term is less than 3 chars
       if (searchTerm.length < 3) {
         if (cachedClients.length > 0) {
           const filtered = cachedClients.filter(name => name.toLowerCase().includes(searchTerm));
@@ -146,19 +139,13 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // Execute debounced backend search for 3+ characters
       debouncedSearch(searchTerm);
     });
 
     const debouncedSearch = debounce(async (searchTerm) => {
-      console.log(`[Search Input] Triggering fetch for: "${searchTerm}"`);
-
       try {
         const res = await apiFetch(`/api/clients/search?q=${encodeURIComponent(searchTerm)}`);
-        if (!res.ok) {
-          console.warn(`[Search Fetch] Request failed with HTTP ${res.status}`);
-          return;
-        }
+        if (!res.ok) return;
 
         const data = await res.json();
         const rawClients = Array.isArray(data) ? data : (data.results || data.clients || data.data || []);
@@ -172,13 +159,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }).filter(Boolean);
 
         updateDatalist(results);
-        console.log(`[Datalist Update] Added ${results.length} options to datalist element.`);
       } catch (err) {
         console.error("[Search Fetch] Network/Parse Error:", err);
       }
     }, 300);
-  } else {
-    console.error("❌ clientSearchInput element NOT found in DOM. Check HTML ID!");
   }
 
   // Handle 'Add Client' Form Submission
@@ -279,7 +263,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateBatchBarState() {
-    // Only query desktop checkboxes to avoid duplicating count
     const checkedRows = new Set(
       [...queueTableBody.querySelectorAll("td .row-checkbox:checked")].map(cb => cb.value)
     );
@@ -319,7 +302,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const action = tr.querySelector(".action-select").value;
   
     if (isNaN(rowIndex) && !clientName) {
-      console.error("Invalid row index or name for auto-save:", rawRowIndex, clientName);
       showAlert("Error saving: Invalid Client Data", "#fee2e2", "#991b1b");
       return;
     }
@@ -467,7 +449,7 @@ document.addEventListener('DOMContentLoaded', () => {
           draggedRow = tr;
           tr.classList.add("dragging");
           e.dataTransfer.effectAllowed = "move";
-          e.dataTransfer.setData("text/plain", ""); // Required by Firefox to initiate dragging
+          e.dataTransfer.setData("text/plain", "");
         });
 
         tr.addEventListener("dragend", async () => {
@@ -573,7 +555,6 @@ document.addEventListener('DOMContentLoaded', () => {
   
     let newPlacement = String(newIndex + 1);
   
-    // If dragged to top
     if (newIndex === 0) {
       newPlacement = "1";
     } else {
@@ -581,7 +562,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const aboveValStr = rowAbove ? (rowAbove.querySelector(".placement-select")?.value || "").toUpperCase() : "";
   
       if (aboveValStr.startsWith("P")) {
-        // If dropped directly below a Priority row, default to position 1
         newPlacement = "1";
       } else {
         const aboveVal = parseInt(aboveValStr, 10);
@@ -722,8 +702,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (selectedClients.length === 0) return;
 
-      // Delete from the bottom of the sheet upward. Deleting a row shifts every row
-      // below it up by one, which would make the remaining row_index values wrong.
       selectedClients.sort((a, b) => (b.row_index || 0) - (a.row_index || 0));
 
       if (!confirm(`Are you sure you want to delete ${selectedClients.length} client(s)?`)) return;
