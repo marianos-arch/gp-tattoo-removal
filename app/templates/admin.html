@@ -237,10 +237,18 @@
     }
   });
 
-  // Hash route redirect fallback
-  if (window.location.hash === '#status') {
-    window.location.href = '/#status';
+  // Redirect instantly whenever #status appears in the URL
+  function checkStatusHash() {
+    if (window.location.hash === '#status') {
+      window.location.href = '/#status';
+    }
   }
+
+  // Check immediately on page load
+  checkStatusHash();
+
+  // Listen for anchor link clicks while remaining on the admin page
+  window.addEventListener('hashchange', checkStatusHash);
 
   function toggleActivityLogs() {
     const logsContainer = document.getElementById('logsTableContainer');
