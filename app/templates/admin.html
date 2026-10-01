@@ -57,7 +57,6 @@
       <form id="addClientForm" class="form-grid">
         
         <!-- Enhanced Autocomplete Form Group -->
-        <!-- Enhanced Autocomplete Form Group -->
         <div class="form-group flex-grow-2">
           <label for="clientSearch">Client Name</label>
           <div class="autocomplete-container">
@@ -231,19 +230,20 @@
 
 <script>
   document.addEventListener("DOMContentLoaded", function () {
+    const clientSearchInput = document.getElementById("clientSearch");
     const placementInput = document.getElementById("placementInput");
 
     function checkPlacementGlow() {
-      if (!placementInput) return;
+      if (!clientSearchInput || !placementInput) return;
       const val = placementInput.value.trim();
   
-      // Matches 'P1' through 'P5' OR numbers '1' through '25'
-      const isPriorityOrNumeric = /^P?\d+$/i.test(val);
+      // Matches 'P1' through 'P5', numbers '1' through '25', or 'Overflow'
+      const isPriorityOrNumeric = /^P?\d+$/i.test(val) || val.toLowerCase() === "overflow";
   
       if (isPriorityOrNumeric) {
-        placementInput.classList.add("placement-pulse");
+        clientSearchInput.classList.add("placement-pulse");
       } else {
-        placementInput.classList.remove("placement-pulse");
+        clientSearchInput.classList.remove("placement-pulse");
       }
     }
   
