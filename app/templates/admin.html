@@ -57,6 +57,7 @@
       <form id="addClientForm" class="form-grid">
         
         <!-- Enhanced Autocomplete Form Group -->
+        <!-- Enhanced Autocomplete Form Group -->
         <div class="form-group flex-grow-2">
           <label for="clientSearch">Client Name</label>
           <div class="autocomplete-container">
@@ -67,9 +68,12 @@
                 name="client_name" 
                 placeholder="Start typing client name..." 
                 autocomplete="off" 
+                list="clientList"
                 required 
                 class="form-control"
               >
+              <datalist id="clientList">
+              </datalist>
               <div id="autocompleteSpinner" class="autocomplete-spinner"></div>
             </div>
             <div id="autocompleteDropdown" class="autocomplete-dropdown"></div>
