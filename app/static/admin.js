@@ -535,7 +535,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Helper to determine if a placement warrants the green pulse animation
   function shouldPlacementPulse(placement) {
     const val = String(placement || '').trim();
-    return /^P?\d+$/i.test(val) || val.toLowerCase() === "overflow";
+    
+    // Strictly matches P1, P2, P3, P4, P5 (or any 'P' followed by digits, like P12)
+    return /^P\d+$/i.test(val);
   }
 
   async function loadWaitingRoom({ force = false, silent = false } = {}) {
