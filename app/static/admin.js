@@ -19,6 +19,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const batchActionBar = document.getElementById("batchActionBar");
   const selectedCountBadge = document.getElementById("selectedCountBadge");
   const clearSelectionBtn = document.getElementById("clearSelectionBtn");
+  const activityBar = document.getElementById("activityBar");
+  const syncBadge = document.getElementById("syncBadge");
+  const syncBadgeText = document.getElementById("syncBadgeText");
   
   let draggedRow = null;
   let cachedClients = [];
@@ -34,6 +37,11 @@ document.addEventListener('DOMContentLoaded', () => {
   let loadSeq = 0;                     // lets a newer queue load supersede an older one
   let lastQueueSignature = null;       // skip re-rendering when nothing changed
   let placementTouched = false;        // don't overwrite a placement the admin picked by hand
+
+  // Activity-indicator state
+  let loadsInFlight = 0;               // visible (non-background) queue loads running
+  let refreshPending = false;          // a post-save refresh is scheduled
+  const busyNames = new Set();         // clients whose change is queued or being saved
 
   // Escape untrusted text before using innerHTML
   function escapeHtml(value) {
@@ -185,8 +193,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Handle 'Add Client' Form Submission
   if (addClientForm) {
+    const addSubmitBtn = addClientForm.querySelector('button[type="submit"]');
+
     addClientForm.addEventListener("submit", async (e) => {
       e.preventDefault();
+      if (addSubmitBtn && addSubmitBtn.disabled) return; // already submitting
 
       const clientName = clientSearchInput.value.trim();
       const placement = document.getElementById("placementInput").value;
@@ -196,6 +207,9 @@ document.addEventListener('DOMContentLoaded', () => {
         showAlert("Please enter or select a client name", "#fee2e2", "#991b1b");
         return;
       }
+
+      setButtonLoading(addSubmitBtn, true);
+      showAlert("Adding client...", "#dbeafe", "#1e40af", { busy: true });
 
       try {
         const res = await apiFetch("/api/waiting-room/add", {
@@ -218,8 +232,11 @@ document.addEventListener('DOMContentLoaded', () => {
           showAlert(errData.error || errData.message || "Failed to add client", "#fee2e2", "#991b1b");
         }
       } catch (err) {
+        if (err.sessionExpired) return;
         console.error("Error submitting add client form:", err);
         showAlert("Server connection error", "#fee2e2", "#991b1b");
+      } finally {
+        setButtonLoading(addSubmitBtn, false);
       }
     });
   }
@@ -324,14 +341,69 @@ document.addEventListener('DOMContentLoaded', () => {
   //   2. re-look-up the person's current row by NAME right before writing
   //   3. reload the queue after saving so the page matches the sheet
   // ---------------------------------------------------------------------------
+  // ---- Activity indicators -------------------------------------------------
+  // One source of truth: the top bar + header badge are on whenever a save is
+  // queued/running, a queue load is running, or a post-save refresh is waiting.
+  function updateActivityIndicator() {
+    const active = pendingOps > 0 || loadsInFlight > 0 || refreshPending;
+    if (activityBar) activityBar.classList.toggle("active", active);
+    if (syncBadge) {
+      syncBadge.hidden = !active;
+      if (syncBadgeText) {
+        syncBadgeText.textContent = pendingOps > 0 ? "Saving changes..." : "Syncing with sheet...";
+      }
+    }
+  }
+
+  function findRowsByName(name) {
+    return [...queueTableBody.querySelectorAll("tr[data-client-name]")]
+      .filter(tr => tr.dataset.clientName === name);
+  }
+
+  function applyBusyState(tr, on) {
+    tr.classList.toggle("row-busy", on);
+    tr.setAttribute("aria-busy", on ? "true" : "false");
+    // Lock this person's dropdowns while their change is in flight
+    tr.querySelectorAll("select").forEach(sel => { sel.disabled = on; });
+  }
+
+  function setRowBusy(name, on) {
+    if (!name) return;
+    if (on) busyNames.add(name);
+    else busyNames.delete(name);
+    findRowsByName(name).forEach(tr => applyBusyState(tr, on));
+  }
+
+  function flashRow(name, kind) {
+    if (!name) return;
+    const cls = kind === "ok" ? "row-flash-ok" : "row-flash-err";
+    findRowsByName(name).forEach(tr => {
+      tr.classList.remove("row-flash-ok", "row-flash-err");
+      void tr.offsetWidth; // restart the animation if it is already running
+      tr.classList.add(cls);
+      setTimeout(() => tr.classList.remove(cls), 1300);
+    });
+  }
+
+  function setButtonLoading(btn, on) {
+    if (!btn) return;
+    btn.classList.toggle("is-loading", on);
+    btn.disabled = on;
+    btn.setAttribute("aria-busy", on ? "true" : "false");
+  }
+
   function normalizeName(value) {
     return String(value || "").trim().toLowerCase();
   }
 
   function enqueue(job) {
     pendingOps++;
+    updateActivityIndicator();
     const result = opChain.then(() => job());
-    opChain = result.catch(() => {}).then(() => { pendingOps--; });
+    opChain = result.catch(() => {}).then(() => {
+      pendingOps--;
+      updateActivityIndicator();
+    });
     return result;
   }
 
@@ -391,6 +463,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function scheduleRefresh(delay = REFRESH_AFTER_SAVE_MS, force = false) {
     refreshForce = refreshForce || force;
+    refreshPending = true;
+    updateActivityIndicator();
     clearTimeout(refreshTimer);
     refreshTimer = setTimeout(async () => {
       // Never rebuild the table while saves are running or a row is being dragged
@@ -400,7 +474,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       const forceNow = refreshForce;
       refreshForce = false;
-      await loadWaitingRoom({ force: forceNow });
+      refreshPending = false;
+      await loadWaitingRoom({ force: forceNow }); // keeps the indicator on while it loads
     }, delay);
   }
 
@@ -429,28 +504,41 @@ document.addEventListener('DOMContentLoaded', () => {
       mobAction.innerText = action;
       mobAction.className = 'mobile-status-tag action-' + action.replace(/\s+/g, '-');
     }
+
+    // Spinner on this row right away (even if the save is queued behind another one)
+    setRowBusy(clientName, true);
   
     return enqueue(async () => {
       try {
         const result = await persistUpdate({ name: clientName, rowIndex, placement, action });
         if (result.ok) {
           showAlert("Updated!", "#dcfce7", "#166534");
+          flashRow(clientName, "ok");
           scheduleRefresh();               // pick up any re-sort / removal done by the sheet
         } else {
           showAlert(describeFailure(result), "#fee2e2", "#991b1b");
+          flashRow(clientName, "err");
           scheduleRefresh(300, true);      // put the screen back in line with the sheet
         }
       } catch (err) {
         if (err.sessionExpired) return;
         console.error("Auto-save error:", err);
         showAlert("Network error during save", "#fee2e2", "#991b1b");
+        flashRow(clientName, "err");
         scheduleRefresh(300, true);
+      } finally {
+        setRowBusy(clientName, false);
       }
     });
   }
 
-  async function loadWaitingRoom({ force = false } = {}) {
+  async function loadWaitingRoom({ force = false, silent = false } = {}) {
     const seq = ++loadSeq;
+    // silent = background poll: don't flash the progress indicator every 30s
+    if (!silent) {
+      loadsInFlight++;
+      updateActivityIndicator();
+    }
     try {
       const res = await apiFetch("/api/waiting-room");
       const data = await res.json();
@@ -499,7 +587,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tr.innerHTML = `
           <td class="drag-handle" style="cursor: grab;">⋮⋮</td>
           <td><input type="checkbox" class="row-checkbox" value="${row.row_index}"></td>
-          <td style="font-weight: 600; color: #0f172a;">${escapeHtml(row.Name)}</td>
+          <td style="font-weight: 600; color: #0f172a;">${escapeHtml(row.Name)}<span class="row-spinner" aria-hidden="true"></span></td>
           <td>
             <select class="form-control form-control-sm placement-select" style="min-width: 90px;">
               ${getPlacementOptionsHTML(currentPlacement)}
@@ -514,7 +602,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="mobile-card-summary">
             <div class="mobile-card-info" onclick="toggleMobileDrawer(this)">
               <span class="mobile-placement-tag mob-place-label">${currentPlacement ? escapeHtml(currentPlacement) + '.' : '-.'}</span>
-              <span>${escapeHtml(row.Name)}</span>
+              <span>${escapeHtml(row.Name)}<span class="row-spinner" aria-hidden="true"></span></span>
               <span class="mobile-status-tag mob-status-label ${actionClass}">${escapeHtml(currentAction)}</span>
             </div>
             <input type="checkbox" class="row-checkbox mobile-cb" value="${row.row_index}">
@@ -585,6 +673,9 @@ document.addEventListener('DOMContentLoaded', () => {
           tr.querySelector('.mobile-edit-drawer').classList.add('open');
         }
 
+        // A save for this client is still in flight: keep showing its spinner
+        if (busyNames.has(row.Name || '')) applyBusyState(tr, true);
+
         // Desktop HTML5 drag event handlers
         tr.addEventListener("dragstart", (e) => {
           draggedRow = tr;
@@ -616,6 +707,11 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         lastQueueSignature = null;
         queueTableBody.innerHTML = `<tr><td colspan="5" class="table-loading" style="color: #ef4444;">Failed to load queue.</td></tr>`;
+      }
+    } finally {
+      if (!silent) {
+        loadsInFlight--;
+        updateActivityIndicator();
       }
     }
   }
@@ -736,21 +832,27 @@ document.addEventListener('DOMContentLoaded', () => {
       if (mobPlacementSelect) mobPlacementSelect.value = newPlacement;
       if (mobPlacementLabel) mobPlacementLabel.innerText = `${newPlacement}.`;
   
+      setRowBusy(clientName, true);
       await enqueue(async () => {
         try {
           const result = await persistUpdate({ name: clientName, rowIndex, placement: newPlacement, action });
           if (result.ok) {
             showAlert("Queue order saved!", "#dcfce7", "#166534");
+            flashRow(clientName, "ok");
             scheduleRefresh();
           } else {
             showAlert(describeFailure(result), "#fee2e2", "#991b1b");
+            flashRow(clientName, "err");
             scheduleRefresh(300, true);
           }
         } catch (err) {
           if (err.sessionExpired) return;
           console.error("Failed to update dragged row position:", err);
           showAlert("Network error saving new position", "#fee2e2", "#991b1b");
+          flashRow(clientName, "err");
           scheduleRefresh(300, true);
+        } finally {
+          setRowBusy(clientName, false);
         }
       });
     } else {
@@ -787,9 +889,20 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   const applyBulkBtn = document.getElementById("applyBulkActionBtn");
+  const deleteSelectedBtn = document.getElementById("deleteSelectedBtn");
+  const bulkActionSelect = document.getElementById("bulkActionSelect");
+
+  // Lock the batch bar while a bulk job runs; the pressed button shows a spinner
+  function setBatchBusy(on, activeBtn) {
+    [applyBulkBtn, deleteSelectedBtn, clearSelectionBtn, bulkActionSelect].forEach(el => {
+      if (el) el.disabled = on;
+    });
+    if (activeBtn) setButtonLoading(activeBtn, on);
+  }
+
   if (applyBulkBtn) {
     applyBulkBtn.addEventListener("click", () => {
-      const actionVal = document.getElementById("bulkActionSelect").value;
+      const actionVal = bulkActionSelect.value;
       if (!actionVal) return alert("Please select a status action.");
 
       const selectedRows = [...queueTableBody.querySelectorAll("td .row-checkbox:checked")].map(cb => {
@@ -804,7 +917,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (selectedRows.length === 0) return;
 
-      showAlert(`Updating ${selectedRows.length} rows...`, "#dbeafe", "#1e40af");
+      const total = selectedRows.length;
+      let done = 0;
+
+      setBatchBusy(true, applyBulkBtn);
+      selectedRows.forEach(item => setRowBusy(item.name, true));
+      showAlert(`Updating 0 of ${total}...`, "#dbeafe", "#1e40af", { busy: true, progress: 0 });
 
       enqueue(async () => {
         let failed = 0;
@@ -823,6 +941,10 @@ document.addEventListener('DOMContentLoaded', () => {
               if (result.reason === "missing") gone++;
               else failed++;
             }
+
+            done++;
+            setRowBusy(item.name, false);
+            showAlert(`Updating ${done} of ${total}...`, "#dbeafe", "#1e40af", { busy: true, progress: done / total });
             await new Promise(resolve => setTimeout(resolve, 200));
           }
         } catch (err) {
@@ -831,6 +953,9 @@ document.addEventListener('DOMContentLoaded', () => {
           showAlert("Bulk update interrupted. Reloading queue...", "#fee2e2", "#991b1b");
           scheduleRefresh(300, true);
           return;
+        } finally {
+          selectedRows.forEach(item => setRowBusy(item.name, false));
+          setBatchBusy(false, applyBulkBtn);
         }
 
         scheduleRefresh(REFRESH_AFTER_SAVE_MS, true);
@@ -846,7 +971,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  const deleteSelectedBtn = document.getElementById("deleteSelectedBtn");
   if (deleteSelectedBtn) {
     deleteSelectedBtn.addEventListener("click", () => {
       const selectedClients = [...queueTableBody.querySelectorAll("td .row-checkbox:checked")].map(cb => {
@@ -863,32 +987,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (!confirm(`Are you sure you want to delete ${selectedClients.length} client(s)?`)) return;
 
-      showAlert(`Deleting ${selectedClients.length} row(s)...`, "#fee2e2", "#991b1b");
+      const total = selectedClients.length;
+      let done = 0;
+
+      setBatchBusy(true, deleteSelectedBtn);
+      selectedClients.forEach(client => setRowBusy(client.name, true));
+      showAlert(`Deleting 0 of ${total}...`, "#fee2e2", "#991b1b", { busy: true, progress: 0 });
 
       enqueue(async () => {
         let failed = 0;
         try {
           for (const client of selectedClients) {
             let targetRow = client.row_index;
+            let skip = false;
 
             // Look the person up by name right now, so a shifted sheet can't make us delete someone else
             if (client.name) {
               const found = await resolveRowIndex(client.name, client.row_index);
-              if (found.status === "missing") continue;   // already gone
-              if (found.status === "ambiguous") { failed++; continue; }
-              targetRow = found.row_index;
+              if (found.status === "missing") skip = true;            // already gone
+              else if (found.status === "ambiguous") { failed++; skip = true; }
+              else targetRow = found.row_index;
             }
 
-            const res = await apiFetch("/api/waiting-room/delete", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ 
-                row_index: targetRow, 
-                name: client.name 
-              })
-            });
-            if (!res.ok) failed++;
-            await new Promise(resolve => setTimeout(resolve, 100));
+            if (!skip) {
+              const res = await apiFetch("/api/waiting-room/delete", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ 
+                  row_index: targetRow, 
+                  name: client.name 
+                })
+              });
+              if (!res.ok) failed++;
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+
+            done++;
+            setRowBusy(client.name, false);
+            showAlert(`Deleting ${done} of ${total}...`, "#fee2e2", "#991b1b", { busy: true, progress: done / total });
           }
         } catch (err) {
           if (err.sessionExpired) return;
@@ -896,11 +1032,14 @@ document.addEventListener('DOMContentLoaded', () => {
           showAlert("Delete interrupted. Reloading queue...", "#fee2e2", "#991b1b");
           scheduleRefresh(300, true);
           return;
+        } finally {
+          selectedClients.forEach(client => setRowBusy(client.name, false));
+          setBatchBusy(false, deleteSelectedBtn);
         }
 
         scheduleRefresh(300, true);
         if (failed) {
-          showAlert(`${failed} of ${selectedClients.length} deletions failed (duplicate names must be removed in the sheet)`, "#fee2e2", "#991b1b");
+          showAlert(`${failed} of ${total} deletions failed (duplicate names must be removed in the sheet)`, "#fee2e2", "#991b1b");
         } else {
           showAlert("Selected row(s) deleted successfully!", "#dcfce7", "#166534");
         }
@@ -931,14 +1070,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (tableSearch) tableSearch.addEventListener("input", applyTableFilter);
 
-  function showAlert(msg, bg, color) {
+  // opts.busy     -> show a spinner and keep the banner up until the next message replaces it
+  // opts.progress -> 0..1, draws a thin progress bar under the text
+  function showAlert(msg, bg, color, opts = {}) {
     if (!statusAlert) return;
-    statusAlert.innerText = msg;
+
+    statusAlert.textContent = "";
+
+    if (opts.busy) {
+      const spinner = document.createElement("span");
+      spinner.className = "alert-spinner";
+      spinner.setAttribute("aria-hidden", "true");
+      statusAlert.appendChild(spinner);
+    }
+
+    statusAlert.appendChild(document.createTextNode(msg));
+
+    if (typeof opts.progress === "number") {
+      const track = document.createElement("span");
+      track.className = "alert-progress";
+      const fill = document.createElement("span");
+      fill.style.width = Math.round(Math.max(0, Math.min(1, opts.progress)) * 100) + "%";
+      track.appendChild(fill);
+      statusAlert.appendChild(track);
+    }
+
     statusAlert.style.backgroundColor = bg;
     statusAlert.style.color = color;
     statusAlert.style.display = "block";
+
     clearTimeout(alertTimer);
-    alertTimer = setTimeout(() => { statusAlert.style.display = "none"; }, 3500);
+    if (!opts.busy) {
+      alertTimer = setTimeout(() => { statusAlert.style.display = "none"; }, 3500);
+    }
   }
 
   function autoSetNextPlacement(queueData) {
@@ -977,7 +1141,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const active = document.activeElement;
     if (active && active.tagName === "SELECT" && queueTableBody.contains(active)) return; // don't close an open dropdown
 
-    loadWaitingRoom();
+    loadWaitingRoom({ silent: true });
     loadLogs();
   }, AUTO_REFRESH_MS);
 
