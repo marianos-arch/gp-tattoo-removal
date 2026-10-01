@@ -7,49 +7,6 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='processing.css') }}">
 
-<style>
-  /* Pulsing green animation for Client Names in Queue Table */
-  @keyframes pulseGreen {
-    0% {
-      color: #16a34a;
-      text-shadow: 0 0 0px rgba(34, 197, 94, 0.4);
-    }
-    50% {
-      color: #15803d;
-      text-shadow: 0 0 8px rgba(34, 197, 94, 0.8);
-    }
-    100% {
-      color: #16a34a;
-      text-shadow: 0 0 0px rgba(34, 197, 94, 0.4);
-    }
-  }
-
-  .queue-name-pulse {
-    animation: pulseGreen 1.8s infinite ease-in-out !important;
-    font-weight: 700 !important;
-  }
-
-  /* Mobile fixes (admin.css hides every <td> at <=768px for the card layout) */
-  @media (max-width: 768px) {
-    /* Keep queue empty/loading/error messages visible */
-    #queueTableBody td.table-loading {
-      display: block;
-    }
-
-    /* Activity Logs has no card layout, so keep it a normal scrollable table */
-    #logsTableContainer .modern-table { display: table; min-width: 640px; }
-    #logsTableContainer .modern-table thead { display: table-header-group; }
-    #logsTableContainer .modern-table tbody { display: table-row-group; }
-    #logsTableContainer .modern-table tr {
-      display: table-row;
-      margin: 0;
-      border: 0;
-      border-radius: 0;
-    }
-    #logsTableContainer .modern-table th,
-    #logsTableContainer .modern-table td { display: table-cell; }
-  }
-</style>
 
 <div id="activityBar" class="activity-bar" aria-hidden="true"></div>
 <section class="admin-wrapper">
