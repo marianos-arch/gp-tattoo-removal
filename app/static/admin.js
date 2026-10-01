@@ -1105,9 +1105,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // --- Client Name Pulse Logic ---
+  const placementInputEl = document.getElementById("placementInput");
+
+  function checkPlacementGlow() {
+    if (!clientSearchInput || !placementInputEl) return;
+    const val = placementInputEl.value.trim();
+
+    // Pulses if placement is Priority (P1-P5), Numeric (1-25), or Overflow
+    const isPriorityOrNumeric = /^P?\d+$/i.test(val) || val.toLowerCase() === "overflow";
+
+    if (isPriorityOrNumeric) {
+      clientSearchInput.classList.add("placement-pulse");
+    } else {
+      clientSearchInput.classList.remove("placement-pulse");
+    }
+  }
+
   function autoSetNextPlacement(queueData) {
-    const placementInput = document.getElementById("placementInput");
-    if (!placementInput) return;
+    if (!placementInputEl) return;
 
     // Don't overwrite a placement the admin picked by hand while a refresh happens
     if (placementTouched) return;
@@ -1124,13 +1140,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const next = maxPlacement + 1;
-    placementInput.value = next <= 25 ? String(next) : "Overflow";
+    placementInputEl.value = next <= 25 ? String(next) : "Overflow";
+
+    // Trigger glow check after programmatically updating placement value
+    checkPlacementGlow();
   }
 
-  const placementInputEl = document.getElementById("placementInput");
   if (placementInputEl) {
-    // 'change' only fires for user edits, not for the programmatic default above
-    placementInputEl.addEventListener("change", () => { placementTouched = true; });
+    placementInputEl.addEventListener("change", () => {
+      placementTouched = true;
+      checkPlacementGlow();
+    });
+    placementInputEl.addEventListener("input", checkPlacementGlow);
   }
 
   // Background sync: pick up changes made in the Google Sheet or by another admin
