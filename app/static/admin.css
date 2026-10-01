@@ -482,6 +482,32 @@ tr.dragging { opacity: 0.4; background: #e2e8f0; }
   font-weight: 600;
 }
 
+
+/* Pulsing Green Animation for Placement Dropdown */
+@keyframes pulseGreen {
+  0% {
+    border-color: #22c55e !important;
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7) !important;
+  }
+  70% {
+    border-color: #16a34a !important;
+    box-shadow: 0 0 0 8px rgba(34, 197, 94, 0) !important;
+  }
+  100% {
+    border-color: #22c55e !important;
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0) !important;
+  }
+}
+
+select.form-control.placement-pulse,
+.form-control.placement-pulse,
+.form-control.placement-pulse:focus {
+  animation: pulseGreen 1.8s infinite ease-in-out !important;
+  border-color: #22c55e !important;
+  outline: none !important;
+}
+
+
 /* ==========================================================================
    Responsive Navigation Breakpoint (≤ 992px)
    ========================================================================== */
@@ -540,28 +566,6 @@ tr.dragging { opacity: 0.4; background: #e2e8f0; }
     align-items: center;
   }
 }
-
-/* Pulsing Green Animation for Placement Dropdown */
-@keyframes pulseGreen {
-  0% {
-    border-color: #22c55e;
-    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5);
-  }
-  70% {
-    border-color: #16a34a;
-    box-shadow: 0 0 0 6px rgba(34, 197, 94, 0);
-  }
-  100% {
-    border-color: #22c55e;
-    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
-  }
-}
-
-.placement-pulse {
-  animation: pulseGreen 1.8s infinite ease-in-out !important;
-  border-color: #22c55e !important;
-}
-
 
 /* ==========================================================================
    Consolidated Mobile Table Layout (≤ 768px)
