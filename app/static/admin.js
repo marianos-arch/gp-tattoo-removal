@@ -532,6 +532,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Helper to determine if a placement warrants the green pulse animation
+  function shouldPlacementPulse(placement) {
+    const val = String(placement || '').trim();
+    return /^P?\d+$/i.test(val) || val.toLowerCase() === "overflow";
+  }
+
   async function loadWaitingRoom({ force = false, silent = false } = {}) {
     const seq = ++loadSeq;
     // silent = background poll: don't flash the progress indicator every 30s
@@ -584,10 +590,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const actionClass = 'action-' + currentAction.replace(/\s+/g, '-').replace(/[^\w-]/g, '');
         const currentPlacement = row.Placement || '';
 
+        // Determine initial pulse class state
+        const isPulsing = shouldPlacementPulse(currentPlacement);
+        const pulseClass = isPulsing ? 'queue-name-pulse' : '';
+
         tr.innerHTML = `
           <td class="drag-handle" style="cursor: grab;">⋮⋮</td>
           <td><input type="checkbox" class="row-checkbox" value="${row.row_index}"></td>
-          <td style="font-weight: 600; color: #0f172a;">${escapeHtml(row.Name)}<span class="row-spinner" aria-hidden="true"></span></td>
+          <td class="${pulseClass}" style="font-weight: 600; color: #0f172a;">${escapeHtml(row.Name)}<span class="row-spinner" aria-hidden="true"></span></td>
           <td>
             <select class="form-control form-control-sm placement-select" style="min-width: 90px;">
               ${getPlacementOptionsHTML(currentPlacement)}
@@ -602,7 +612,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="mobile-card-summary">
             <div class="mobile-card-info" onclick="toggleMobileDrawer(this)">
               <span class="mobile-placement-tag mob-place-label">${currentPlacement ? escapeHtml(currentPlacement) + '.' : '-.'}</span>
-              <span>${escapeHtml(row.Name)}<span class="row-spinner" aria-hidden="true"></span></span>
+              <span class="${pulseClass}">${escapeHtml(row.Name)}<span class="row-spinner" aria-hidden="true"></span></span>
               <span class="mobile-status-tag mob-status-label ${actionClass}">${escapeHtml(currentAction)}</span>
             </div>
             <input type="checkbox" class="row-checkbox mobile-cb" value="${row.row_index}">
@@ -631,12 +641,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const desktopAct = tr.querySelector('td .action-select');
         const mobileAct = tr.querySelector('.mob-act-sel');
 
+        // References for live pulse updating
+        const desktopNameTd = tr.querySelector('td:nth-child(3)');
+        const mobileNameSpan = tr.querySelector('.mobile-card-info > span:nth-child(2)');
+
+        function updateNameGlow(placementVal) {
+          const active = shouldPlacementPulse(placementVal);
+          if (desktopNameTd) desktopNameTd.classList.toggle('queue-name-pulse', active);
+          if (mobileNameSpan) mobileNameSpan.classList.toggle('queue-name-pulse', active);
+        }
+
         desktopPlace.addEventListener('change', () => {
           mobilePlace.value = desktopPlace.value;
+          updateNameGlow(desktopPlace.value);
           autoSaveSingleParticipant(tr);
         });
         mobilePlace.addEventListener('change', () => {
           desktopPlace.value = mobilePlace.value;
+          updateNameGlow(mobilePlace.value);
           autoSaveSingleParticipant(tr);
         });
 
