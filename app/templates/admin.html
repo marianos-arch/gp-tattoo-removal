@@ -8,26 +8,25 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='processing.css') }}">
 
 <style>
-  /* Pulse green animation target override */
+  /* Pulsing green animation for Client Names in Queue Table */
   @keyframes pulseGreen {
     0% {
-      border-color: #22c55e !important;
-      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7) !important;
+      color: #16a34a;
+      text-shadow: 0 0 0px rgba(34, 197, 94, 0.4);
     }
-    70% {
-      border-color: #16a34a !important;
-      box-shadow: 0 0 0 8px rgba(34, 197, 94, 0) !important;
+    50% {
+      color: #15803d;
+      text-shadow: 0 0 8px rgba(34, 197, 94, 0.8);
     }
     100% {
-      border-color: #22c55e !important;
-      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0) !important;
+      color: #16a34a;
+      text-shadow: 0 0 0px rgba(34, 197, 94, 0.4);
     }
   }
 
-  input#clientSearch.placement-pulse {
+  .queue-name-pulse {
     animation: pulseGreen 1.8s infinite ease-in-out !important;
-    border-color: #22c55e !important;
-    outline: none !important;
+    font-weight: 700 !important;
   }
 
   /* Mobile fixes (admin.css hides every <td> at <=768px for the card layout) */
