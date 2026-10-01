@@ -5,6 +5,7 @@
 {% block content %}
 <!-- Page-Specific Admin Stylesheet -->
 <link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='processing.css') }}">
 
 <style>
   /* Mobile fixes (admin.css hides every <td> at <=768px for the card layout) */
@@ -29,6 +30,7 @@
   }
 </style>
 
+<div id="activityBar" class="activity-bar" aria-hidden="true"></div>
 <section class="admin-wrapper">
   <div class="admin-layout-single">
 
@@ -41,6 +43,7 @@
 
       <!-- User Info Badge & Small Red Logout Button -->
       <div class="header-actions">
+        <span id="syncBadge" class="sync-badge" hidden role="status" aria-live="polite"><span class="gp-spinner" aria-hidden="true"></span><span id="syncBadgeText">Syncing...</span></span>
         <span class="user-badge">
           Signed in as <strong>{{ session.get('user', {}).get('email', 'Admin') }}</strong>
         </span>
