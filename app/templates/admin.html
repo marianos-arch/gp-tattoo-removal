@@ -8,6 +8,28 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='processing.css') }}">
 
 <style>
+  /* Pulse green animation target override */
+  @keyframes pulseGreen {
+    0% {
+      border-color: #22c55e !important;
+      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7) !important;
+    }
+    70% {
+      border-color: #16a34a !important;
+      box-shadow: 0 0 0 8px rgba(34, 197, 94, 0) !important;
+    }
+    100% {
+      border-color: #22c55e !important;
+      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0) !important;
+    }
+  }
+
+  input#clientSearch.placement-pulse {
+    animation: pulseGreen 1.8s infinite ease-in-out !important;
+    border-color: #22c55e !important;
+    outline: none !important;
+  }
+
   /* Mobile fixes (admin.css hides every <td> at <=768px for the card layout) */
   @media (max-width: 768px) {
     /* Keep queue empty/loading/error messages visible */
@@ -237,10 +259,8 @@
       if (!clientSearchInput || !placementInput) return;
       const val = placementInput.value.trim();
   
-      // Matches 'P1' through 'P5', numbers '1' through '25', or 'Overflow'
-      const isPriorityOrNumeric = /^P?\d+$/i.test(val) || val.toLowerCase() === "overflow";
-  
-      if (isPriorityOrNumeric) {
+      // Active condition: any selected value other than empty
+      if (val !== "") {
         clientSearchInput.classList.add("placement-pulse");
       } else {
         clientSearchInput.classList.remove("placement-pulse");
@@ -250,7 +270,11 @@
     if (placementInput) {
       placementInput.addEventListener("change", checkPlacementGlow);
       placementInput.addEventListener("input", checkPlacementGlow);
-      checkPlacementGlow(); // Run on page load
+      checkPlacementGlow();
+    }
+
+    if (clientSearchInput) {
+      clientSearchInput.addEventListener("input", checkPlacementGlow);
     }
 
     // --- Toggle Edit Mode Logic ---
@@ -266,17 +290,13 @@
     }
   });
 
-  // Redirect instantly whenever #status appears in the URL
   function checkStatusHash() {
     if (window.location.hash === '#status') {
       window.location.href = '/#status';
     }
   }
 
-  // Check immediately on page load
   checkStatusHash();
-
-  // Listen for anchor link clicks while remaining on the admin page
   window.addEventListener('hashchange', checkStatusHash);
 
   function toggleActivityLogs() {
