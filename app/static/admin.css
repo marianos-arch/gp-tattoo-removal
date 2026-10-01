@@ -462,7 +462,7 @@
 
 .action-Pending { background-color: #fef3c7; color: #92400e; border-color: #fde68a; }
 .action-Check-in { background-color: #dbeafe; color: #1e40af; border-color: #bfdbfe; }
-.action-In-Progress { background-color: #e0e7ff; color: #3730a3; border-color: #c7d2fe; }
+.action-In-Progress { background-color: #f3e8ff; color: #6b21a8; border-color: #e9d5ff; }
 .action-Successful { background-color: #dcfce7; color: #166534; border-color: #bbf7d0; }
 .action-No-Show { background-color: #f3f4f6; color: #4b5563; border-color: #e5e7eb; }
 .action-Rejected { background-color: #fee2e2; color: #991b1b; border-color: #fca5a5; }
