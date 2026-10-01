@@ -230,8 +230,31 @@
 </div>
 
 <script>
-  // Toggle Edit Mode Logic
   document.addEventListener("DOMContentLoaded", function () {
+    // --- Placement Glow Listener ---
+    const placementInput = document.getElementById("placementInput");
+
+    function checkPlacementGlow() {
+      if (!placementInput) return;
+      const val = placementInput.value.trim();
+
+      // Matches 'P' followed by digits (P1, P2, etc.) OR standalone numbers (1, 2, 25, etc.)
+      const isPriorityOrNumeric = /^P?\d+$/i.test(val);
+
+      if (isPriorityOrNumeric) {
+        placementInput.classList.add("placement-pulse");
+      } else {
+        placementInput.classList.remove("placement-pulse");
+      }
+    }
+
+    if (placementInput) {
+      placementInput.addEventListener("change", checkPlacementGlow);
+      // Run on page load in case a value is pre-selected
+      checkPlacementGlow();
+    }
+
+    // --- Toggle Edit Mode Logic ---
     const toggleEditBtn = document.getElementById("toggleEditBtn");
     const queueTable = document.getElementById("queueTable");
 
