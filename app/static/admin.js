@@ -11,7 +11,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!queueTableBody) return;
 
   const clientSearchInput = document.getElementById("clientSearch");
-  const clientList = document.getElementById("clientList");
   const addClientForm = document.getElementById("addClientForm");
   const logsTableBody = document.getElementById("logsTableBody");
   const masterCheckbox = document.getElementById("masterCheckbox");
@@ -24,7 +23,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const syncBadgeText = document.getElementById("syncBadgeText");
   
   let draggedRow = null;
-  let cachedClients = [];
   let alertTimer = null;
 
   // Consistency-layer state (see "Consistency layer" below)
@@ -42,6 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let loadsInFlight = 0;               // visible (non-background) queue loads running
   let refreshPending = false;          // a post-save refresh is scheduled
   const busyNames = new Set();         // clients whose change is queued or being saved
+  let queueNameSet = new Set();        // normalized names currently in the queue (duplicate guard)
 
   // Escape untrusted text before using innerHTML
   function escapeHtml(value) {
@@ -87,47 +86,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Preload initial client cache / popular suggestions safely
-  async function preloadClientCache() {
-    if (!clientList) return;
-    
-    try {
-      const res = await apiFetch('/api/clients/search?q=');
-      if (!res.ok) {
-        console.error("Failed to fetch clients list:", res.status);
-        return;
-      }  
-  
-      const data = await res.json();
-      
-      const rawClients = Array.isArray(data) ? data : (data.results || data.clients || data.data || []);
-      
-      cachedClients = rawClients.map(item => {
-        if (typeof item === 'string') return item;
-        if (typeof item === 'object' && item !== null) {
-          return item.Name || item.name || item.Client_Name || item.client_name || item.full_name || '';
-        }
-        return '';
-      }).filter(Boolean);  
-  
-      updateDatalist(cachedClients);
-    } catch (err) {
-      console.error("Error preloading client cache:", err);
-    }
-  }
-
-  // Helper to update datalist options
-  function updateDatalist(names) {
-    if (!clientList) return;
-    clientList.innerHTML = "";
-    const fragment = document.createDocumentFragment();
-    names.forEach(name => {
-      const option = document.createElement("option");
-      option.value = name;
-      fragment.appendChild(option);
-    });
-    clientList.appendChild(fragment);
-  }
+  // ---------------------------------------------------------------------------
+  // Client-name autocomplete (custom dropdown)
+  // Markup it drives: #clientSearch (input), #autocompleteSpinner, #autocompleteDropdown
+  // ---------------------------------------------------------------------------
+  const AC_MIN_CHARS = 2;                  // don't search for a single letter
+  const AC_DEBOUNCE_MS = 200;
+  const AC_CACHE_TTL_MS = 5 * 60 * 1000;   // the server caches the roster for 5 minutes too
+  const acDropdown = document.getElementById("autocompleteDropdown");
+  const acSpinner = document.getElementById("autocompleteSpinner");
+  const acCache = new Map();               // lowercased query -> { names, at }
+  let acResults = [];                      // names currently listed
+  let acSeq = 0;                           // bumped on every search/close so late replies are ignored
+  let acAbort = null;                      // cancels the in-flight request
+  let acComposing = false;                 // IME composition in progress
 
   // Debounce helper to prevent flooding the backend on every keypress
   function debounce(func, delay = 300) {
@@ -138,57 +110,271 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
-  // Dynamic live search with fallback to cached options + debounced fetch
-  if (clientSearchInput) {
-    // Show initial cached list when input field gains focus
-    clientSearchInput.addEventListener("focus", () => {
-      if (cachedClients.length > 0 && (!clientList.children || clientList.children.length === 0)) {
-        updateDatalist(cachedClients);
+  function escapeRegExp(text) {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  // Wrap each typed word in <mark>. Everything is HTML-escaped first, so odd names can't inject markup.
+  function highlightMatch(name, query) {
+    const parts = query.split(/[\s,]+/).filter(Boolean)
+      .sort((a, b) => b.length - a.length)
+      .map(escapeRegExp);
+    if (parts.length === 0) return escapeHtml(name);
+    const pieces = String(name).split(new RegExp("(" + parts.join("|") + ")", "i"));
+    return pieces
+      .map((piece, i) => (i % 2 === 1 ? '<mark class="ac-match">' + escapeHtml(piece) + '</mark>' : escapeHtml(piece)))
+      .join("");
+  }
+
+  function extractClientNames(data) {
+    const raw = Array.isArray(data) ? data : (data.results || data.clients || data.data || []);
+    return raw.map(item => {
+      if (typeof item === "string") return item;
+      if (item && typeof item === "object") {
+        return item.Name || item.name || item.Client_Name || item.client_name || item.full_name || "";
       }
+      return "";
+    }).filter(Boolean);
+  }
+
+  function isAutocompleteOpen() {
+    return !!acDropdown && acDropdown.classList.contains("open");
+  }
+
+  function openAutocomplete() {
+    if (!acDropdown) return;
+    acDropdown.classList.add("open");
+    clientSearchInput.setAttribute("aria-expanded", "true");
+  }
+
+  function setAutocompleteLoading(on) {
+    if (acSpinner) acSpinner.classList.toggle("is-loading", on);
+    if (clientSearchInput) clientSearchInput.setAttribute("aria-busy", on ? "true" : "false");
+  }
+
+  // Hide the list and cancel anything still in flight
+  function closeAutocomplete() {
+    if (!acDropdown) return;
+    acSeq++;
+    if (acAbort) { acAbort.abort(); acAbort = null; }
+    acDropdown.classList.remove("open");
+    clientSearchInput.setAttribute("aria-expanded", "false");
+    clientSearchInput.removeAttribute("aria-activedescendant");
+    setAutocompleteLoading(false);
+  }
+
+  function showAutocompleteMessage(text, kind) {
+    acResults = [];
+    acDropdown.textContent = "";
+    const row = document.createElement("div");
+    row.className = "autocomplete-status" + (kind ? " " + kind : "");
+    row.setAttribute("role", "presentation");
+    row.textContent = text;
+    acDropdown.appendChild(row);
+    clientSearchInput.removeAttribute("aria-activedescendant");
+    openAutocomplete();
+  }
+
+  function renderAutocomplete(query, names) {
+    if (names.length === 0) {
+      showAutocompleteMessage("No matching clients", "");
+      return;
+    }
+
+    acResults = names;
+    acDropdown.textContent = "";
+    clientSearchInput.removeAttribute("aria-activedescendant");
+
+    names.forEach((name, i) => {
+      const item = document.createElement("div");
+      item.className = "autocomplete-item";
+      item.id = "ac-option-" + i;
+      item.dataset.index = String(i);
+      item.setAttribute("role", "option");
+
+      const label = document.createElement("span");
+      label.className = "autocomplete-item-name";
+      label.innerHTML = highlightMatch(name, query);
+      item.appendChild(label);
+
+      // Names are the identity everywhere else on this page, so the same name twice in the
+      // queue would make edits ambiguous. Show it, but don't let it be picked again.
+      if (queueNameSet.has(normalizeName(name))) {
+        item.classList.add("is-disabled");
+        item.setAttribute("aria-disabled", "true");
+        const tag = document.createElement("span");
+        tag.className = "autocomplete-item-tag";
+        tag.textContent = "Already in queue";
+        item.appendChild(tag);
+      }
+
+      acDropdown.appendChild(item);
     });
 
-    clientSearchInput.addEventListener("input", function(e) {
-      if (e.inputType === "insertReplacementText" || e.inputType === "insertFromText") return;
+    openAutocomplete();
+  }
 
-      const searchTerm = this.value.trim().toLowerCase();
+  function enabledAutocompleteItems() {
+    return [...acDropdown.querySelectorAll(".autocomplete-item:not(.is-disabled)")];
+  }
 
-      // Show instant filter from preloaded cache if search term is less than 3 chars
-      if (searchTerm.length < 3) {
-        if (cachedClients.length > 0) {
-          const filtered = cachedClients.filter(name => name.toLowerCase().includes(searchTerm));
-          updateDatalist(filtered);
-        }
+  function setAutocompleteActive(item) {
+    acDropdown.querySelectorAll(".autocomplete-item.active").forEach(el => {
+      el.classList.remove("active");
+      el.removeAttribute("aria-selected");
+    });
+    if (!item) {
+      clientSearchInput.removeAttribute("aria-activedescendant");
+      return;
+    }
+    item.classList.add("active");
+    item.setAttribute("aria-selected", "true");
+    clientSearchInput.setAttribute("aria-activedescendant", item.id);
+    item.scrollIntoView({ block: "nearest" });
+  }
+
+  function moveAutocompleteActive(delta) {
+    const items = enabledAutocompleteItems();
+    if (items.length === 0) return;
+    const current = items.findIndex(el => el.classList.contains("active"));
+    let next;
+    if (current === -1) next = delta > 0 ? 0 : items.length - 1;
+    else next = (current + delta + items.length) % items.length;
+    setAutocompleteActive(items[next]);
+  }
+
+  function selectAutocompleteItem(item) {
+    const name = acResults[Number(item.dataset.index)];
+    if (!name) return;
+    clientSearchInput.value = name;
+    closeAutocomplete();
+    clientSearchInput.focus();
+  }
+
+  async function runAutocompleteSearch(query) {
+    const key = query.toLowerCase();
+    const seq = ++acSeq;
+    if (acAbort) acAbort.abort();
+
+    const cached = acCache.get(key);
+    if (cached && (Date.now() - cached.at) < AC_CACHE_TTL_MS) {
+      acAbort = null;
+      setAutocompleteLoading(false);
+      renderAutocomplete(query, cached.names);
+      return;
+    }
+
+    setAutocompleteLoading(true);
+    // First search of a session: nothing to show yet, so say so rather than staying blank
+    if (!isAutocompleteOpen() || acResults.length === 0) {
+      showAutocompleteMessage("Searching...", "");
+    }
+
+    acAbort = new AbortController();
+    try {
+      const res = await apiFetch(`/api/clients/search?q=${encodeURIComponent(query)}`, { signal: acAbort.signal });
+      const data = await res.json();
+      if (seq !== acSeq) return; // a newer search (or a close) superseded this one
+      if (!res.ok) throw new Error(data.error || "Search failed");
+
+      const names = extractClientNames(data);
+      if (acCache.size >= 50) acCache.delete(acCache.keys().next().value);
+      acCache.set(key, { names, at: Date.now() });
+      renderAutocomplete(query, names);
+    } catch (err) {
+      if (err.name === "AbortError" || err.sessionExpired || seq !== acSeq) return;
+      console.error("[Autocomplete] search failed:", err);
+      showAutocompleteMessage("Couldn't search right now. You can still type the full name.", "error");
+    } finally {
+      if (seq === acSeq) setAutocompleteLoading(false);
+    }
+  }
+
+  const debouncedAutocompleteSearch = debounce(() => {
+    const query = clientSearchInput.value.trim();
+    // Skip if the field was emptied or the user already moved on
+    if (query.length < AC_MIN_CHARS || document.activeElement !== clientSearchInput) return;
+    runAutocompleteSearch(query);
+  }, AC_DEBOUNCE_MS);
+
+  if (clientSearchInput && acDropdown) {
+    // Screen-reader semantics (set here so the HTML doesn't need to change)
+    // The page may still carry the old native <datalist>; unlink it so there aren't two suggestion lists
+    clientSearchInput.removeAttribute("list");
+    clientSearchInput.setAttribute("role", "combobox");
+    clientSearchInput.setAttribute("aria-autocomplete", "list");
+    clientSearchInput.setAttribute("aria-expanded", "false");
+    clientSearchInput.setAttribute("aria-controls", "autocompleteDropdown");
+    acDropdown.setAttribute("role", "listbox");
+    acDropdown.setAttribute("aria-label", "Matching clients");
+
+    clientSearchInput.addEventListener("compositionstart", () => { acComposing = true; });
+    clientSearchInput.addEventListener("compositionend", () => {
+      acComposing = false;
+      debouncedAutocompleteSearch();
+    });
+
+    clientSearchInput.addEventListener("input", () => {
+      if (acComposing) return;
+      if (clientSearchInput.value.trim().length < AC_MIN_CHARS) {
+        closeAutocomplete();
         return;
       }
-
-      // Execute debounced backend search for 3+ characters
-      debouncedSearch(searchTerm);
+      debouncedAutocompleteSearch();
     });
 
-    const debouncedSearch = debounce(async (searchTerm) => {
-      try {
-        const res = await apiFetch(`/api/clients/search?q=${encodeURIComponent(searchTerm)}`);
-        if (!res.ok) {
-          console.warn(`[Search Fetch] Request failed with HTTP ${res.status}`);
-          return;
-        }
-
-        const data = await res.json();
-        const rawClients = Array.isArray(data) ? data : (data.results || data.clients || data.data || []);
-
-        const results = rawClients.map(item => {
-          if (typeof item === 'string') return item;
-          if (typeof item === 'object' && item !== null) {
-            return item.Name || item.name || item.Client_Name || item.client_name || '';
-          }
-          return '';
-        }).filter(Boolean);
-
-        updateDatalist(results);
-      } catch (err) {
-        console.error("[Search Fetch] Network/Parse Error:", err);
+    // Coming back to the field: show the last results for what is typed, if we have them
+    clientSearchInput.addEventListener("focus", () => {
+      const query = clientSearchInput.value.trim();
+      const cached = acCache.get(query.toLowerCase());
+      if (query.length >= AC_MIN_CHARS && cached && (Date.now() - cached.at) < AC_CACHE_TTL_MS) {
+        renderAutocomplete(query, cached.names);
       }
-    }, 300);
+    });
+
+    clientSearchInput.addEventListener("blur", closeAutocomplete);
+
+    clientSearchInput.addEventListener("keydown", (e) => {
+      if (e.isComposing) return;
+
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        const query = clientSearchInput.value.trim();
+        const cached = acCache.get(query.toLowerCase());
+        if (!isAutocompleteOpen() && query.length >= AC_MIN_CHARS && cached) {
+          renderAutocomplete(query, cached.names);
+        }
+        if (isAutocompleteOpen()) {
+          e.preventDefault();
+          moveAutocompleteActive(e.key === "ArrowDown" ? 1 : -1);
+        }
+      } else if (e.key === "Enter") {
+        // Only take over Enter when a suggestion is highlighted; otherwise it submits the form as usual
+        const active = isAutocompleteOpen() ? acDropdown.querySelector(".autocomplete-item.active") : null;
+        if (active) {
+          e.preventDefault();
+          selectAutocompleteItem(active);
+        }
+      } else if (e.key === "Escape") {
+        if (isAutocompleteOpen()) {
+          e.preventDefault();
+          closeAutocomplete();
+        }
+      }
+    });
+
+    // mousedown (not click) so the input keeps focus and doesn't blur-close the list first
+    acDropdown.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      const item = e.target.closest(".autocomplete-item");
+      if (item && !item.classList.contains("is-disabled")) selectAutocompleteItem(item);
+    });
+
+    acDropdown.addEventListener("mouseover", (e) => {
+      const item = e.target.closest(".autocomplete-item");
+      if (item && !item.classList.contains("is-disabled")) setAutocompleteActive(item);
+    });
+
+    if (addClientForm) addClientForm.addEventListener("reset", closeAutocomplete);
   }
 
   // Handle 'Add Client' Form Submission
@@ -205,6 +391,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (!clientName) {
         showAlert("Please enter or select a client name", "#fee2e2", "#991b1b");
+        return;
+      }
+
+      // Everything on this page identifies people by name, so refuse a duplicate
+      if (queueNameSet.has(normalizeName(clientName))) {
+        showAlert(`"${clientName}" is already in the waiting room.`, "#fee2e2", "#991b1b");
         return;
       }
 
@@ -265,7 +457,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function applyActionColorClass(selectElement) {
     if (!selectElement) return;
-    selectElement.className = 'form-control form-control-sm action-select action-' + selectElement.value.replace(/\s+/g, '-');
+    // Swap only the colour class; keep every other class (e.g. "mob-act-sel") intact
+    [...selectElement.classList]
+      .filter(c => c.startsWith('action-') && c !== 'action-select')
+      .forEach(c => selectElement.classList.remove(c));
+    selectElement.classList.add('action-' + selectElement.value.replace(/\s+/g, '-'));
   }
 
   function sortQueueData(queue) {
@@ -382,6 +578,55 @@ document.addEventListener('DOMContentLoaded', () => {
       void tr.offsetWidth; // restart the animation if it is already running
       tr.classList.add(cls);
       setTimeout(() => tr.classList.remove(cls), 1300);
+    });
+  }
+
+  // Statuses after which the sheet removes the client from the Waiting Room
+  const REMOVAL_STATUSES = new Set(["Successful", "Rejected", "No-Show"]);
+
+  function uncheckRowsByName(name) {
+    findRowsByName(name).forEach(tr => {
+      tr.querySelectorAll(".row-checkbox").forEach(cb => { cb.checked = false; });
+    });
+    updateBatchBarState();
+  }
+
+  // A save was CONFIRMED by the server: show the new status on the row now (don't wait for the
+  // sheet re-sync) and take it out of the selection. Failures are left alone on purpose, so they
+  // stay selected and can be retried.
+  function applySavedStateToRows(name, action) {
+    findRowsByName(name).forEach(tr => {
+      const desktopAct = tr.querySelector("td .action-select");
+      const mobileAct = tr.querySelector(".mob-act-sel");
+      [desktopAct, mobileAct].forEach(sel => {
+        if (sel) {
+          sel.value = action;
+          applyActionColorClass(sel);
+        }
+      });
+
+      const mobLabel = tr.querySelector(".mob-status-label");
+      if (mobLabel) {
+        mobLabel.innerText = action;
+        mobLabel.className = 'mobile-status-tag mob-status-label action-' + action.replace(/\s+/g, '-');
+      }
+
+      tr.querySelectorAll(".row-checkbox").forEach(cb => { cb.checked = false; });
+
+      // This client is about to leave the queue: dim it so that is obvious
+      if (REMOVAL_STATUSES.has(action)) tr.classList.add("row-leaving");
+    });
+    updateBatchBarState();
+  }
+
+  // Remove a row from the table right away (used after a confirmed delete)
+  function removeRowsByName(name) {
+    findRowsByName(name).forEach(tr => {
+      tr.classList.add("row-removing");
+      setTimeout(() => {
+        tr.remove();
+        updateBatchBarState();
+      }, 260);
     });
   }
 
@@ -502,7 +747,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (mobPlacement) mobPlacement.innerText = `${placement || '-'}.`;
     if (mobAction) {
       mobAction.innerText = action;
-      mobAction.className = 'mobile-status-tag action-' + action.replace(/\s+/g, '-');
+      mobAction.className = 'mobile-status-tag mob-status-label action-' + action.replace(/\s+/g, '-');
     }
 
     // Spinner on this row right away (even if the save is queued behind another one)
@@ -554,6 +799,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (seq !== loadSeq) return; // a newer load has superseded this one
 
       const queue = data.queue || [];
+      queueNameSet = new Set(queue.map(r => normalizeName(r.Name)).filter(Boolean));
       autoSetNextPlacement(queue);
 
       const sortedQueue = sortQueueData(queue);
@@ -961,13 +1207,21 @@ document.addEventListener('DOMContentLoaded', () => {
               placement: item.placement,
               action: item.action
             });
-            if (!result.ok) {
-              if (result.reason === "missing") gone++;
-              else failed++;
-            }
-
             done++;
             setRowBusy(item.name, false);
+
+            if (result.ok) {
+              // Confirmed: new status on screen + out of the selection, right now
+              applySavedStateToRows(item.name, item.action);
+              flashRow(item.name, "ok");
+            } else if (result.reason === "missing") {
+              gone++;
+              uncheckRowsByName(item.name);
+            } else {
+              // Stays selected (and flashes red) so it can be retried
+              failed++;
+              flashRow(item.name, "err");
+            }
             showAlert(`Updating ${done} of ${total}...`, "#dbeafe", "#1e40af", { busy: true, progress: done / total });
             await new Promise(resolve => setTimeout(resolve, 200));
           }
@@ -987,9 +1241,11 @@ document.addEventListener('DOMContentLoaded', () => {
           const parts = [];
           if (failed) parts.push(`${failed} failed`);
           if (gone) parts.push(`${gone} no longer in the queue`);
-          showAlert(`Bulk update finished: ${parts.join(", ")}`, "#fee2e2", "#991b1b");
+          const retryNote = failed ? " (failed rows stay selected so you can retry)" : "";
+          showAlert(`Bulk update finished: ${parts.join(", ")}${retryNote}`, "#fee2e2", "#991b1b");
         } else {
           showAlert("Selected status updated!", "#dcfce7", "#166534");
+          bulkActionSelect.value = ""; // all clean: ready for the next batch
         }
       });
     });
@@ -1023,17 +1279,17 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           for (const client of selectedClients) {
             let targetRow = client.row_index;
-            let skip = false;
+            let outcome = "pending"; // pending -> deleted | gone | failed
 
             // Look the person up by name right now, so a shifted sheet can't make us delete someone else
             if (client.name) {
               const found = await resolveRowIndex(client.name, client.row_index);
-              if (found.status === "missing") skip = true;            // already gone
-              else if (found.status === "ambiguous") { failed++; skip = true; }
+              if (found.status === "missing") outcome = "gone";            // already gone
+              else if (found.status === "ambiguous") { failed++; outcome = "failed"; }
               else targetRow = found.row_index;
             }
 
-            if (!skip) {
+            if (outcome === "pending") {
               const res = await apiFetch("/api/waiting-room/delete", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -1042,12 +1298,19 @@ document.addEventListener('DOMContentLoaded', () => {
                   name: client.name 
                 })
               });
-              if (!res.ok) failed++;
+              if (res.ok) outcome = "deleted";
+              else { failed++; outcome = "failed"; }
               await new Promise(resolve => setTimeout(resolve, 100));
             }
 
             done++;
             setRowBusy(client.name, false);
+
+            if (outcome === "deleted" || outcome === "gone") {
+              removeRowsByName(client.name);   // a delete is certain, so drop the row now
+            } else {
+              flashRow(client.name, "err");    // stays selected so it can be retried
+            }
             showAlert(`Deleting ${done} of ${total}...`, "#fee2e2", "#991b1b", { busy: true, progress: done / total });
           }
         } catch (err) {
@@ -1191,7 +1454,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }, AUTO_REFRESH_MS);
 
   // Initialize page data
-  preloadClientCache();
   loadWaitingRoom({ force: true });
   loadLogs();
 });
