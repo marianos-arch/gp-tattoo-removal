@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let alertTimer = null;
 
   // Consistency-layer state (see "Consistency layer" below)
-  const REFRESH_AFTER_SAVE_MS = 1500;  // wait for the sheet/Apps Script to finish re-sorting or removing rows
+  const REFRESH_AFTER_SAVE_MS = 100;   // successful POST already waits for Apps Script
   const AUTO_REFRESH_MS = 30000;       // background sync with the sheet
   let opChain = Promise.resolve();     // saves run one at a time, in order
   let pendingOps = 0;                  // saves / bulk jobs queued or running
@@ -40,6 +40,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let loadsInFlight = 0;               // visible (non-background) queue loads running
   let refreshPending = false;          // a post-save refresh is scheduled
   const busyNames = new Set();         // clients whose change is queued or being saved
+  const syncingNames = new Set();      // keep edited rows locked until a fresh snapshot arrives
+  const rowPhases = new Map();
   let queueNameSet = new Set();        // normalized names currently in the queue (duplicate guard)
 
   // Escape untrusted text before using innerHTML
@@ -561,6 +563,23 @@ document.addEventListener('DOMContentLoaded', () => {
     tr.setAttribute("aria-busy", on ? "true" : "false");
     // Lock this person's dropdowns while their change is in flight
     tr.querySelectorAll("select").forEach(sel => { sel.disabled = on; });
+    tr.draggable = !on;
+    tr.querySelectorAll(".row-save-state").forEach(label => {
+      label.textContent = on ? (rowPhases.get(tr.dataset.clientName) || "Saving…") : "";
+    });
+  }
+
+  function setRowPhase(name, phase) {
+    rowPhases.set(name, phase);
+    setRowBusy(name, true);
+  }
+
+  function finishQueueSync() {
+    syncingNames.forEach(name => {
+      setRowBusy(name, false);
+      rowPhases.delete(name);
+    });
+    syncingNames.clear();
   }
 
   function setRowBusy(name, on) {
@@ -642,6 +661,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function enqueue(job) {
+    loadSeq++; // invalidate reads started before this edit
     pendingOps++;
     updateActivityIndicator();
     const result = opChain.then(() => job());
@@ -675,28 +695,29 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function persistUpdate({ name, rowIndex, placement, action }) {
-    let targetRow = rowIndex;
+    // Flask and Apps Script both resolve the current row by name before writing.
+    // A separate browser GET adds latency without making that check safer.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 45000);
+    try {
+      const res = await apiFetch("/api/waiting-room/update", {
+        method: "POST",
+        signal: controller.signal,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          row_index: rowIndex,
+          name: name,
+          placement: placement,
+          action: action
+        })
+      });
 
-    if (name) {
-      const found = await resolveRowIndex(name, rowIndex);
-      if (found.status !== "ok") return { ok: false, reason: found.status };
-      targetRow = found.row_index;
+      const body = await res.json();
+      if (res.ok) return { ok: true, note: body.note || "" };
+      return { ok: false, reason: "http", message: body.error || "" };
+    } finally {
+      clearTimeout(timeout);
     }
-
-    const res = await apiFetch("/api/waiting-room/update", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        row_index: targetRow,
-        name: name,
-        placement: placement,
-        action: action
-      })
-    });
-
-    if (res.ok) return { ok: true };
-    const errBody = await res.json().catch(() => ({}));
-    return { ok: false, reason: "http", message: errBody.error || "" };
   }
 
   function describeFailure(result) {
@@ -724,12 +745,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }, delay);
   }
 
-  function autoSaveSingleParticipant(tr) {
+  function autoSaveSingleParticipant(tr, changedField) {
     const rawRowIndex = tr.dataset.rowIndex;
     const rowIndex = parseInt(rawRowIndex, 10);
     const clientName = tr.dataset.clientName || "";
-    const placement = tr.querySelector(".placement-select").value;
-    const action = tr.querySelector(".action-select").value;
+    const placement = changedField === "action" ? undefined : tr.querySelector(".placement-select").value;
+    const action = changedField === "placement" ? undefined : tr.querySelector(".action-select").value;
   
     if (isNaN(rowIndex) && !clientName) {
       console.error("Invalid row index or name for auto-save:", rawRowIndex, clientName);
@@ -744,22 +765,23 @@ document.addEventListener('DOMContentLoaded', () => {
   
     const mobPlacement = tr.querySelector(".mob-place-label");
     const mobAction = tr.querySelector(".mob-status-label");
-    if (mobPlacement) mobPlacement.innerText = `${placement || '-'}.`;
-    if (mobAction) {
+    if (mobPlacement && placement !== undefined) mobPlacement.innerText = `${placement || '-'}.`;
+    if (mobAction && action !== undefined) {
       mobAction.innerText = action;
       mobAction.className = 'mobile-status-tag mob-status-label action-' + action.replace(/\s+/g, '-');
     }
 
     // Spinner on this row right away (even if the save is queued behind another one)
-    setRowBusy(clientName, true);
+    setRowPhase(clientName, pendingOps > 0 ? "Queued…" : "Saving…");
   
     return enqueue(async () => {
+      setRowPhase(clientName, "Saving…");
+      const slowTimer = setTimeout(() => setRowPhase(clientName, "Still saving…"), 8000);
       try {
         const result = await persistUpdate({ name: clientName, rowIndex, placement, action });
         if (result.ok) {
-          showAlert("Updated!", "#dcfce7", "#166534");
-          flashRow(clientName, "ok");
-          scheduleRefresh();               // pick up any re-sort / removal done by the sheet
+          showAlert(result.note || "Saved. Refreshing queue…", "#dbeafe", "#1e40af");
+          scheduleRefresh(REFRESH_AFTER_SAVE_MS, true);
         } else {
           showAlert(describeFailure(result), "#fee2e2", "#991b1b");
           flashRow(clientName, "err");
@@ -768,11 +790,13 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) {
         if (err.sessionExpired) return;
         console.error("Auto-save error:", err);
-        showAlert("Network error during save", "#fee2e2", "#991b1b");
+        showAlert("Save could not be confirmed. Refreshing the queue before you retry.", "#fee2e2", "#991b1b");
         flashRow(clientName, "err");
         scheduleRefresh(300, true);
       } finally {
-        setRowBusy(clientName, false);
+        clearTimeout(slowTimer);
+        syncingNames.add(clientName);
+        setRowPhase(clientName, "Refreshing queue…");
       }
     });
   }
@@ -786,17 +810,24 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function loadWaitingRoom({ force = false, silent = false } = {}) {
+    if (pendingOps > 0 || draggedRow) {
+      if (!silent) scheduleRefresh(100, force);
+      return;
+    }
     const seq = ++loadSeq;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
     // silent = background poll: don't flash the progress indicator every 30s
     if (!silent) {
       loadsInFlight++;
       updateActivityIndicator();
     }
     try {
-      const res = await apiFetch("/api/waiting-room");
+      const res = await apiFetch("/api/waiting-room", { signal: controller.signal, cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load queue");
-      if (seq !== loadSeq) return; // a newer load has superseded this one
+      if (seq !== loadSeq || pendingOps > 0 || draggedRow) return;
+      finishQueueSync();
 
       const queue = data.queue || [];
       queueNameSet = new Set(queue.map(r => normalizeName(r.Name)).filter(Boolean));
@@ -845,7 +876,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tr.innerHTML = `
           <td class="drag-handle" style="cursor: grab;">⋮⋮</td>
           <td><input type="checkbox" class="row-checkbox" value="${row.row_index}"></td>
-          <td class="${pulseClass}" style="font-weight: 600; color: #0f172a;">${escapeHtml(row.Name)}<span class="row-spinner" aria-hidden="true"></span></td>
+          <td class="${pulseClass}" style="font-weight: 600; color: #0f172a;">${escapeHtml(row.Name)}<span class="row-spinner" aria-hidden="true"></span><span class="row-save-state" role="status"></span></td>
           <td>
             <select class="form-control form-control-sm placement-select" style="min-width: 90px;">
               ${getPlacementOptionsHTML(currentPlacement)}
@@ -860,7 +891,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="mobile-card-summary">
             <div class="mobile-card-info" onclick="toggleMobileDrawer(this)">
               <span class="mobile-placement-tag mob-place-label">${currentPlacement ? escapeHtml(currentPlacement) + '.' : '-.'}</span>
-              <span class="${pulseClass}">${escapeHtml(row.Name)}<span class="row-spinner" aria-hidden="true"></span></span>
+              <span class="${pulseClass}">${escapeHtml(row.Name)}<span class="row-spinner" aria-hidden="true"></span><span class="row-save-state" role="status"></span></span>
               <span class="mobile-status-tag mob-status-label ${actionClass}">${escapeHtml(currentAction)}</span>
             </div>
             <input type="checkbox" class="row-checkbox mobile-cb" value="${row.row_index}">
@@ -902,25 +933,25 @@ document.addEventListener('DOMContentLoaded', () => {
         desktopPlace.addEventListener('change', () => {
           mobilePlace.value = desktopPlace.value;
           updateNameGlow(desktopPlace.value);
-          autoSaveSingleParticipant(tr);
+          autoSaveSingleParticipant(tr, "placement");
         });
         mobilePlace.addEventListener('change', () => {
           desktopPlace.value = mobilePlace.value;
           updateNameGlow(mobilePlace.value);
-          autoSaveSingleParticipant(tr);
+          autoSaveSingleParticipant(tr, "placement");
         });
 
         desktopAct.addEventListener('change', () => {
           mobileAct.value = desktopAct.value;
           applyActionColorClass(desktopAct);
           applyActionColorClass(mobileAct);
-          autoSaveSingleParticipant(tr);
+          autoSaveSingleParticipant(tr, "action");
         });
         mobileAct.addEventListener('change', () => {
           desktopAct.value = mobileAct.value;
           applyActionColorClass(desktopAct);
           applyActionColorClass(mobileAct);
-          autoSaveSingleParticipant(tr);
+          autoSaveSingleParticipant(tr, "action");
         });
 
         const desktopCb = tr.querySelector('td .row-checkbox');
@@ -948,6 +979,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Desktop HTML5 drag event handlers
         tr.addEventListener("dragstart", (e) => {
+          if (pendingOps > 0 || refreshPending || syncingNames.size > 0 || loadsInFlight > 0) {
+            e.preventDefault();
+            return;
+          }
+          loadSeq++;
           draggedRow = tr;
           tr.classList.add("dragging");
           e.dataTransfer.effectAllowed = "move";
@@ -956,8 +992,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         tr.addEventListener("dragend", async () => {
           tr.classList.remove("dragging");
-          await updatePlacementsAfterReorder();
+          const saving = updatePlacementsAfterReorder();
           draggedRow = null;
+          await saving;
         });
 
         attachMobilePressAndHold(tr);
@@ -969,6 +1006,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     } catch (err) {
       if (seq !== loadSeq) return;
+      finishQueueSync();
+      lastQueueSignature = null; // next successful refresh must restore unsaved controls
       console.error("Error loading waiting room:", err);
 
       if (queueTableBody.querySelector("tr[data-client-name]")) {
@@ -979,6 +1018,7 @@ document.addEventListener('DOMContentLoaded', () => {
         queueTableBody.innerHTML = `<tr><td colspan="5" class="table-loading" style="color: #ef4444;">Failed to load queue.</td></tr>`;
       }
     } finally {
+      clearTimeout(timeout);
       if (!silent) {
         loadsInFlight--;
         updateActivityIndicator();
@@ -1025,9 +1065,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let isHolding = false;
 
     tr.addEventListener('touchstart', (e) => {
+      if (pendingOps > 0 || refreshPending || syncingNames.size > 0 || loadsInFlight > 0) return;
       if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT' || e.target.tagName === 'LABEL') return;
 
       holdTimer = setTimeout(() => {
+        if (pendingOps > 0 || refreshPending || syncingNames.size > 0 || loadsInFlight > 0) return;
+        loadSeq++;
         isHolding = true;
         draggedRow = tr;
         tr.classList.add('mobile-holding', 'dragging');
@@ -1055,9 +1098,19 @@ document.addEventListener('DOMContentLoaded', () => {
       if (isHolding) {
         tr.classList.remove('mobile-holding', 'dragging');
         isHolding = false;
-        await updatePlacementsAfterReorder();
+        const saving = updatePlacementsAfterReorder();
         draggedRow = null;
+        await saving;
       }
+    });
+
+    tr.addEventListener('touchcancel', () => {
+      clearTimeout(holdTimer);
+      if (!isHolding) return;
+      isHolding = false;
+      tr.classList.remove('mobile-holding', 'dragging');
+      draggedRow = null;
+      scheduleRefresh(100, true);
     });
   }
 
@@ -1090,26 +1143,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   
     const placementSelect = draggedRow.querySelector(".placement-select");
-    const actionSelect = draggedRow.querySelector(".action-select");
     const mobPlacementLabel = draggedRow.querySelector(".mob-place-label");
     const mobPlacementSelect = draggedRow.querySelector(".mob-place-sel");
     const rowIndex = parseInt(draggedRow.dataset.rowIndex, 10);
     const clientName = draggedRow.dataset.clientName || "";
   
     if (placementSelect && placementSelect.value !== newPlacement) {
-      const action = actionSelect ? actionSelect.value : "Pending";
       placementSelect.value = newPlacement;
       if (mobPlacementSelect) mobPlacementSelect.value = newPlacement;
       if (mobPlacementLabel) mobPlacementLabel.innerText = `${newPlacement}.`;
   
-      setRowBusy(clientName, true);
+      setRowPhase(clientName, "Saving…");
       await enqueue(async () => {
+        const slowTimer = setTimeout(() => setRowPhase(clientName, "Still saving…"), 8000);
         try {
-          const result = await persistUpdate({ name: clientName, rowIndex, placement: newPlacement, action });
+          const result = await persistUpdate({ name: clientName, rowIndex, placement: newPlacement });
           if (result.ok) {
-            showAlert("Queue order saved!", "#dcfce7", "#166534");
-            flashRow(clientName, "ok");
-            scheduleRefresh();
+            showAlert(result.note || "Saved. Refreshing queue…", "#dbeafe", "#1e40af");
+            scheduleRefresh(REFRESH_AFTER_SAVE_MS, true);
           } else {
             showAlert(describeFailure(result), "#fee2e2", "#991b1b");
             flashRow(clientName, "err");
@@ -1118,11 +1169,13 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
           if (err.sessionExpired) return;
           console.error("Failed to update dragged row position:", err);
-          showAlert("Network error saving new position", "#fee2e2", "#991b1b");
+          showAlert("Save could not be confirmed. Refreshing the queue before you retry.", "#fee2e2", "#991b1b");
           flashRow(clientName, "err");
           scheduleRefresh(300, true);
         } finally {
-          setRowBusy(clientName, false);
+          clearTimeout(slowTimer);
+          syncingNames.add(clientName);
+          setRowPhase(clientName, "Refreshing queue…");
         }
       });
     } else {
