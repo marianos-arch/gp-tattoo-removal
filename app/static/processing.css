@@ -152,8 +152,30 @@
 
 .modern-table tr.row-busy select,
 .modern-table tr.row-busy .drag-handle {
-  opacity: 0.55;
+  opacity: 0.85;
   cursor: progress;
+}
+
+/* Keep the selected number legible while the sheet assigns the final order. */
+.modern-table tr.row-busy .placement-select,
+.modern-table tr.row-busy .mobile-placement-tag {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1e40af;
+  font-variant-numeric: tabular-nums;
+}
+
+.row-save-state {
+  display: none;
+  margin-top: 4px;
+  color: #1d4ed8;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.row-busy .row-save-state:not(:empty) {
+  display: block;
 }
 
 /* Brief colour flash when a save finishes */
