@@ -339,11 +339,15 @@ def add_to_waiting_room():
             ""              # I: SMS log
         ]
 
-        ws.insert_row(
-            row_payload,
-            index=3,
+        next_row = max(len(ws.get_all_values()) + 1, 3)
+
+        if next_row > ws.row_count:
+            ws.add_rows(next_row - ws.row_count)
+        
+        ws.update(
+            range_name=f"A{next_row}:I{next_row}",
+            values=[row_payload],
             value_input_option="USER_ENTERED",
-            inherit_from_before=False,
         )
         invalidate_public_cache()
         return jsonify({"status": "success", "added_row": row_payload})
