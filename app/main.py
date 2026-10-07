@@ -339,13 +339,11 @@ def add_to_waiting_room():
             ""              # I: SMS log
         ]
 
-        # Interpret dates and placements normally; only the phone is forced to text.
-        # Both header rows are outside the append search range.
-        ws.append_row(
+        ws.insert_row(
             row_payload,
+            index=3,
             value_input_option="USER_ENTERED",
-            table_range=f"A{WAITING_ROOM_FIRST_DATA_ROW}:I",
-            insert_data_option="INSERT_ROWS",
+            inherit_from_before=False,
         )
         invalidate_public_cache()
         return jsonify({"status": "success", "added_row": row_payload})
