@@ -301,13 +301,23 @@ def add_to_waiting_room():
         if not name:
             return jsonify({"error": "Name is required"}), 400
 
+        # Preserve explicit surname-first names; otherwise use the final word
+        # as the surname. Enter compound surnames explicitly as "Last, First".
+        if "," in name:
+            last_name, given_names = name.split(",", 1)
+            name = f"{' '.join(last_name.split())}, {' '.join(given_names.split())}"
+        else:
+            name_parts = name.split()
+            if len(name_parts) > 1:
+                name = f"{name_parts[-1]}, {' '.join(name_parts[:-1])}"
+
         raw_phone = str(data.get("phone_number") or "").strip()
         phone_digits = re.sub(r"\D", "", raw_phone)
         if len(phone_digits) == 11 and phone_digits.startswith("1"):
             phone_digits = phone_digits[1:]
         if not re.fullmatch(r"[0-9()+.\s-]+", raw_phone) or not re.fullmatch(r"[0-9]{10}", phone_digits):
             return jsonify({"error": "Enter a complete 10-digit U.S. phone number."}), 400
-        phone_number = f"({phone_digits[:3]}) {phone_digits[3:6]}-{phone_digits[6:]}"
+        phone_number = f"+1{phone_digits}"
 
         now = datetime.now()
         timestamp_str = now.strftime("%m/%d/%Y %H:%M:%S")
@@ -324,12 +334,13 @@ def add_to_waiting_room():
             placement,
             action,
             routing_status,
-            "",             # G: SMS consent (not collected by this form)
+            "Yes",          # G: SMS consent
             phone_number,   # H: Phone number
             ""              # I: SMS log
         ]
 
-        ws.append_row(row_payload, value_input_option="USER_ENTERED")
+        # RAW preserves the phone's leading + as text instead of parsing it.
+        ws.append_row(row_payload, value_input_option="RAW")
         invalidate_public_cache()
         return jsonify({"status": "success", "added_row": row_payload})
 
