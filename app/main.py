@@ -335,11 +335,11 @@ def add_to_waiting_room():
             action,
             routing_status,
             "Yes",          # G: SMS consent
-            "'" + phone_number,  # H: Preserve +1 as text
+            "'" + phone_number,   # H: Preserve +1 as text with USER_ENTERED
             ""              # I: SMS log
         ]
 
-        # Parse dates and placement normally; only the phone is forced to text.
+        # Interpret dates and placements normally; only the phone is forced to text.
         ws.append_row(row_payload, value_input_option="USER_ENTERED")
         invalidate_public_cache()
         return jsonify({"status": "success", "added_row": row_payload})
@@ -385,43 +385,23 @@ def update_waiting_room():
                 "error": "The sheet is busy processing another change. Please try again in a moment."
             }), 503
 
-        # 2b. We gave up waiting, but the script may still be running or may have finished.
-        #    Look before writing anything, so nothing is ever applied twice or to the wrong row.
+        # Never claim SMS/routing finished just because the action cell changed.
+        # The script may still be running after a timeout; do not repeat its writes.
         if outcome == "timeout":
-            time.sleep(2)
-            if normalize_name(name):
-                current_row, err = find_waiting_room_row(ws, None, name)
-                if err and err[1] == 404:
-                    # Row is gone: the script finished (removal is how Successful/Rejected/No-Show end)
-                    invalidate_public_cache()
-                    return jsonify({"status": "success", "note": "Processed by the sheet automation"})
-                if not err:
-                    current_action = str(ws.cell(current_row, 5).value or "").strip()
-                    if action is not None and current_action == str(action).strip():
-                        invalidate_public_cache()
-                        return jsonify({"status": "success", "note": "Processed by the sheet automation"})
+            invalidate_public_cache()
             return jsonify({
-                "error": "The sheet is still processing this change. Refresh in a moment to see the result."
+                "error": "The update could not be confirmed. Check the queue and column I in the sheet before retrying."
             }), 504
 
-        # 3. Script unavailable / reported an error: direct write as a fallback.
-        #    NOTE: API writes do not fire the sheet's edit trigger, so routing, logging and
-        #    re-indexing do NOT run on this path.
-        target_row, err = find_waiting_room_row(ws, target_row, name)  # re-verify, rows may have moved
-        if err:
-            return jsonify({"error": err[0]}), err[1]
+        if outcome == "unconfigured":
+            return jsonify({"error": "APPS_SCRIPT_URL is not configured. No update was sent."}), 503
 
-        # Write Action FIRST, then Placement
-        if action is not None:
-            ws.update_cell(target_row, 5, str(action))
-        if placement is not None:
-            ws.update_cell(target_row, 4, str(placement))
-
+        # An Apps Script failure can happen after partial processing. A raw write
+        # would hide the error and skip SMS, logging, and placement automation.
         invalidate_public_cache()
         return jsonify({
-            "status": "success",
-            "note": "Updated via direct write; sheet automation (routing/re-indexing) did not run"
-        })
+            "error": "Apps Script did not confirm this update. Check Apps Script Executions and the sheet before retrying."
+        }), 502
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
