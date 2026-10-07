@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!queueTableBody) return;
 
   const clientSearchInput = document.getElementById("clientSearch");
+  const clientPhoneInput = document.getElementById("clientPhone");
   const addClientForm = document.getElementById("addClientForm");
   const logsTableBody = document.getElementById("logsTableBody");
   const masterCheckbox = document.getElementById("masterCheckbox");
@@ -379,6 +380,61 @@ document.addEventListener('DOMContentLoaded', () => {
     if (addClientForm) addClientForm.addEventListener("reset", closeAutocomplete);
   }
 
+  function formatClientPhone(value) {
+    let digits = String(value || "").replace(/\D/g, "");
+    if (digits.length === 11 && digits.startsWith("1")) digits = digits.slice(1);
+    if (!digits) return "";
+    if (digits.length <= 3) return "(" + digits;
+    if (digits.length <= 6) return "(" + digits.slice(0, 3) + ") " + digits.slice(3);
+    return "(" + digits.slice(0, 3) + ") " + digits.slice(3, 6) + "-" + digits.slice(6);
+  }
+
+  function validateClientPhone() {
+    if (!clientPhoneInput) return false;
+    const valid = /^\(\d{3}\) \d{3}-\d{4}$/.test(clientPhoneInput.value);
+    clientPhoneInput.setCustomValidity(valid ? "" : "Enter a complete 10-digit U.S. phone number.");
+    return valid;
+  }
+
+  if (clientPhoneInput) {
+    clientPhoneInput.addEventListener("input", () => {
+      const raw = clientPhoneInput.value;
+      const caret = clientPhoneInput.selectionStart ?? raw.length;
+      let digitsBefore = raw.slice(0, caret).replace(/\D/g, "").length;
+      const digits = raw.replace(/\D/g, "");
+      if (digits.length === 11 && digits.startsWith("1")) digitsBefore = Math.max(0, digitsBefore - 1);
+      const formatted = formatClientPhone(raw);
+      clientPhoneInput.value = formatted;
+      // Keep the caret next to the same digit when editing in the middle.
+      let nextCaret = 0;
+      let seen = 0;
+      while (nextCaret < formatted.length && seen < digitsBefore) {
+        if (/\d/.test(formatted[nextCaret])) seen++;
+        nextCaret++;
+      }
+      clientPhoneInput.setSelectionRange(nextCaret, nextCaret);
+      validateClientPhone();
+    });
+
+    // Backspace/Delete beside a separator should delete a digit, not get stuck.
+    clientPhoneInput.addEventListener("beforeinput", e => {
+      const start = clientPhoneInput.selectionStart;
+      const end = clientPhoneInput.selectionEnd;
+      if (start === null || start !== end) return;
+      const value = clientPhoneInput.value;
+      if (e.inputType === "deleteContentBackward") {
+        let from = start;
+        while (from > 0 && /\D/.test(value[from - 1])) from--;
+        if (from !== start) clientPhoneInput.setSelectionRange(Math.max(0, from - 1), start);
+      } else if (e.inputType === "deleteContentForward") {
+        let to = start;
+        while (to < value.length && /\D/.test(value[to])) to++;
+        if (to !== start) clientPhoneInput.setSelectionRange(start, Math.min(value.length, to + 1));
+      }
+    });
+    if (addClientForm) addClientForm.addEventListener("reset", () => clientPhoneInput.setCustomValidity(""));
+  }
+
   // Handle 'Add Client' Form Submission
   if (addClientForm) {
     const addSubmitBtn = addClientForm.querySelector('button[type="submit"]');
@@ -386,6 +442,13 @@ document.addEventListener('DOMContentLoaded', () => {
     addClientForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       if (addSubmitBtn && addSubmitBtn.disabled) return; // already submitting
+
+      // Normalize again for browser autofill that may not emit an input event.
+      if (clientPhoneInput) clientPhoneInput.value = formatClientPhone(clientPhoneInput.value);
+      if (!validateClientPhone()) {
+        if (clientPhoneInput) clientPhoneInput.reportValidity();
+        return;
+      }
 
       const clientName = clientSearchInput.value.trim();
       const placement = document.getElementById("placementInput").value;
@@ -411,6 +474,7 @@ document.addEventListener('DOMContentLoaded', () => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
             name: clientName, 
+            phone_number: clientPhoneInput.value,
             placement: placement, 
             action: action 
           })
