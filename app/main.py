@@ -335,12 +335,12 @@ def add_to_waiting_room():
             action,
             routing_status,
             "Yes",          # G: SMS consent
-            phone_number,   # H: Phone number
+            "'" + phone_number,  # H: Preserve +1 as text
             ""              # I: SMS log
         ]
 
-        # RAW preserves the phone's leading + as text instead of parsing it.
-        ws.append_row(row_payload, value_input_option="RAW")
+        # Parse dates and placement normally; only the phone is forced to text.
+        ws.append_row(row_payload, value_input_option="USER_ENTERED")
         invalidate_public_cache()
         return jsonify({"status": "success", "added_row": row_payload})
 
