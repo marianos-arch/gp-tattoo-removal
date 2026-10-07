@@ -340,7 +340,13 @@ def add_to_waiting_room():
         ]
 
         # Interpret dates and placements normally; only the phone is forced to text.
-        ws.append_row(row_payload, value_input_option="USER_ENTERED")
+        # Both header rows are outside the append search range.
+        ws.append_row(
+            row_payload,
+            value_input_option="USER_ENTERED",
+            table_range=f"A{WAITING_ROOM_FIRST_DATA_ROW}:I",
+            insert_data_option="INSERT_ROWS",
+        )
         invalidate_public_cache()
         return jsonify({"status": "success", "added_row": row_payload})
 
